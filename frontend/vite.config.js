@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Where the dev server forwards /api. On the host that's localhost; inside
+// docker-compose.dev.yml the backend is a sibling service, so VITE_PROXY_TARGET
+// overrides it (see docker-compose.dev.yml).
+const proxyTarget = process.env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000'
+
 export default defineConfig({
   plugins: [react()],
   build: {
@@ -21,7 +26,7 @@ export default defineConfig({
     // no environment variable is needed to run locally.
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: proxyTarget,
         changeOrigin: true,
       },
     },

@@ -58,6 +58,7 @@ hourly strip and the 7-day list, so the tooltip enhances the data rather than ga
 **Frontend** — React 19, Vite 7, Recharts 3, plain CSS (no framework, no runtime CSS-in-JS)
 **Backend** — Python 3.12, FastAPI, Uvicorn, httpx, Pydantic v2
 **Data** — [Open-Meteo](https://open-meteo.com) forecast + geocoding APIs (no key)
+**Containers** — Docker + Docker Compose (nginx serving the SPA and proxying the API)
 **Hosting** — Vercel (frontend) + Render (backend), both free tiers
 
 ---
@@ -97,16 +98,22 @@ weather-forecast-app/
 │   ├── vercel.json
 │   ├── vite.config.js
 │   └── package.json
+├── docker-compose.yml        # nginx + FastAPI (production-style)
+├── docker-compose.dev.yml    # live-reload stack for development
 ├── render.yaml               # Render Blueprint for the backend
 ├── .gitignore
 └── README.md
 ```
+
+Each service also carries its own `Dockerfile` and `.dockerignore`, and the frontend
+has an `nginx.conf.template` used by the production image.
 
 ---
 
 ## 🚀 Run it locally
 
 **Prerequisites:** Python 3.10+ and Node.js 18+.
+*(Prefer containers? Skip to [Run it with Docker](#-run-it-with-docker) — one command, no local toolchain.)*
 
 You'll need **two terminals** — one for each server.
 
@@ -163,6 +170,97 @@ Try it:
 curl "http://127.0.0.1:8000/api/weather?city=Tokyo"
 curl "http://127.0.0.1:8000/api/geocode?q=London&count=3"
 ```
+
+---
+
+## 🐳 Run it with Docker
+
+If you'd rather not install Python and Node at all, the whole stack runs in two containers.
+
+```bash
+docker compose up --build
+```
+
+Then open **<http://localhost:8080>**. That's it — no `.env`, no CORS setup.
+
+To stop it: `Ctrl+C`, then `docker compose down`.
+
+### How the containers fit together
+
+```
+                    ┌─────────────────────────────┐
+  browser  ─────►   │  frontend  (nginx :80)      │
+  :8080             │   /        → static SPA     │
+                    │   /api/*   → proxy ────────┐│
+                    └───────────────────────────┼┘
+                                                │  docker network
+                    ┌───────────────────────────▼─┐
+                    │  backend  (uvicorn :8000)   │  ──►  Open-Meteo
+                    └─────────────────────────────┘
+```
+
+The key detail: **nginx serves the app and proxies `/api` to the backend**, so the browser
+only ever talks to one origin. That means no CORS configuration, and no API URL baked in at
+build time — the frontend uses relative `/api/...` paths. Port `8000` is also published so you
+can hit the API and its `/docs` page directly, but the app doesn't need it.
+
+| Service | Image size | Port | Notes |
+|---|---|---|---|
+| `frontend` | ~74 MB | `8080` → 80 | Multi-stage build; only the compiled `dist/` reaches the nginx image |
+| `backend` | ~233 MB | `8000` → 8000 | `python:3.12-slim`, runs as non-root `appuser` (UID 1000) |
+
+Both containers declare healthchecks, and the frontend waits for the backend to report
+healthy (`depends_on: condition: service_healthy`) before it starts accepting traffic.
+
+### Development, with live reload
+
+The default compose file builds an optimised bundle, so it won't pick up your edits. For
+day-to-day work use the dev stack instead:
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+Open **<http://localhost:5173>**. This runs the Vite dev server with HMR and `uvicorn --reload`,
+with your source bind-mounted in — edit a file on the host and the browser updates. Here Vite
+does the `/api` proxying (`VITE_PROXY_TARGET` points it at the backend container), so nginx
+isn't involved at all.
+
+### Useful commands
+
+```bash
+docker compose logs -f backend        # follow backend logs
+docker compose logs -f frontend       # follow nginx logs
+docker compose ps                     # status + health
+docker compose exec backend sh        # shell into the API container
+docker compose up --build --force-recreate   # rebuild from scratch
+docker compose down -v                # stop and remove volumes
+```
+
+### Building the images on their own
+
+```bash
+# Backend
+docker build -t weather-backend ./backend
+docker run --rm -p 8000:8000 weather-backend
+
+# Frontend — BACKEND_ORIGIN is read at container start, not build time
+docker build -t weather-frontend ./frontend
+docker run --rm -p 8080:80 -e BACKEND_ORIGIN=http://host.docker.internal:8000 weather-frontend
+```
+
+The backend honours `$PORT`, so the same image runs unchanged on Render, Fly.io or Cloud Run.
+If you need the frontend to call a backend on a *different* origin (rather than through the
+nginx proxy), bake it in at build time instead:
+
+```bash
+docker build -t weather-frontend \
+  --build-arg VITE_API_BASE_URL=https://your-api.onrender.com ./frontend
+```
+
+> **Permission denied on `/var/run/docker.sock`?** Your user isn't in the `docker` group.
+> Either prefix the commands with `sudo`, or add yourself once:
+> `sudo usermod -aG docker $USER` — then log out and back in (or run `newgrp docker`).
 
 ---
 

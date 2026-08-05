@@ -1,0 +1,77 @@
+# Nginx config for the built SPA.
+#
+# This is an nginx *template*: the official image's entrypoint runs envsubst over
+# /etc/nginx/templates/*.template at container start and writes the result to
+# /etc/nginx/conf.d/. Only ${BACKEND_ORIGIN} is substituted (NGINX_ENVSUBST_FILTER
+# in the Dockerfile pins that), so nginx's own $variables below survive intact.
+
+server {
+    listen      80;
+    server_name _;
+
+    root  /usr/share/nginx/html;
+    index index.html;
+
+    # Docker's embedded DNS. Resolving the backend at request time (rather than
+    # at config load) means this container still starts when the backend is
+    # down — you get a 502 on /api instead of nginx refusing to boot.
+    resolver 127.0.0.11 ipv6=off valid=10s;
+
+    gzip              on;
+    gzip_vary         on;
+    gzip_min_length   256;
+    gzip_proxied      any;
+    gzip_types        text/plain text/css application/javascript application/json
+                      application/xml image/svg+xml font/woff2;
+
+    # ------------------------------------------------------------------ API -- #
+    # Proxying /api here keeps the browser on a single origin, so CORS never
+    # enters the picture and no build-time API URL is needed.
+    location /api/ {
+        set $backend_origin "${BACKEND_ORIGIN}";
+
+        # When proxy_pass contains a variable, nginx does not append the matched
+        # URI automatically — $request_uri supplies the full path plus querystring.
+        proxy_pass $backend_origin$request_uri;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 5s;
+        proxy_send_timeout    30s;
+        # Generous, because a cold-starting free-tier backend can take a while.
+        proxy_read_timeout    60s;
+    }
+
+    # -------------------------------------------------------------- assets --- #
+    # Vite emits content-hashed filenames, so these are safe to cache forever.
+    location /assets/ {
+        # One combined header — `expires` would emit a second, competing
+        # Cache-Control alongside this one.
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Content-Type-Options nosniff;
+        access_log off;
+        try_files  $uri =404;
+    }
+
+    # ----------------------------------------------------------------- app --- #
+    # The app shell must never be cached, or a returning visitor gets a stale
+    # index.html pointing at asset hashes that no longer exist.
+    location = /index.html {
+        add_header Cache-Control "no-store, must-revalidate";
+        add_header X-Content-Type-Options nosniff;
+        add_header X-Frame-Options SAMEORIGIN;
+        add_header Referrer-Policy no-referrer-when-downgrade;
+    }
+
+    # SPA fallback: unknown paths serve index.html so client-side routing works.
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header X-Content-Type-Options nosniff;
+        add_header X-Frame-Options SAMEORIGIN;
+        add_header Referrer-Policy no-referrer-when-downgrade;
+    }
+}

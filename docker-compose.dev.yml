@@ -1,0 +1,47 @@
+# Development stack: both servers run with live reload and your source
+# bind-mounted in, so edits on the host apply immediately.
+#
+#   docker compose -f docker-compose.dev.yml up --build   ->  http://localhost:5173
+#
+# Here the Vite dev server does the /api proxying (see vite.config.js), so nginx
+# is not involved at all.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    image: weather-dashboard-backend:dev
+    container_name: weather-backend-dev
+    environment:
+      PORT: 8000
+      ALLOWED_ORIGINS: http://localhost:5173
+    volumes:
+      # Source mounted read-only — uvicorn --reload only needs to watch it.
+      - ./backend/app:/app/app:ro
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    image: weather-dashboard-frontend:dev
+    container_name: weather-frontend-dev
+    environment:
+      # Point Vite's proxy at the backend service instead of 127.0.0.1.
+      VITE_PROXY_TARGET: http://backend:8000
+    volumes:
+      # Mount source for HMR, but keep the container's own node_modules: the
+      # anonymous volume shadows the host directory, which may hold binaries
+      # built for a different platform.
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.js:/app/vite.config.js
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped

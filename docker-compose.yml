@@ -1,0 +1,50 @@
+# Production-style stack: nginx serves the built SPA and proxies /api to FastAPI.
+#
+#   docker compose up --build     ->  http://localhost:8080
+#
+# Only the frontend needs to be published: the browser talks to a single origin,
+# so there is no CORS configuration to get wrong. The backend port is published
+# too, purely so you can poke the API and its /docs page directly.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      target: prod
+    image: weather-dashboard-backend:latest
+    container_name: weather-backend
+    environment:
+      PORT: 8000
+      # Not needed for the proxied setup above (same-origin requests), but keeps
+      # the API usable from a Vite dev server running on the host.
+      ALLOWED_ORIGINS: http://localhost:5173,http://localhost:8080
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      target: prod
+    image: weather-dashboard-frontend:latest
+    container_name: weather-frontend
+    environment:
+      # Where nginx forwards /api. "backend" is this service's DNS name.
+      BACKEND_ORIGIN: http://backend:8000
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        # Wait for the API to answer /api/health before taking traffic.
+        condition: service_healthy
+    restart: unless-stopped

@@ -1,0 +1,19 @@
+# node_modules is installed inside the image — copying the host's copy would be
+# slow and can carry the wrong platform's native binaries (e.g. esbuild).
+node_modules/
+dist/
+dist-ssr/
+
+.env
+.env.*
+!.env.example
+
+.vite/
+.vercel/
+npm-debug.log*
+yarn-error.log*
+.eslintcache
+
+Dockerfile
+.dockerignore
+*.md

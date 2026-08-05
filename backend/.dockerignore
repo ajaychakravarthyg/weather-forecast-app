@@ -1,0 +1,22 @@
+# Keep the build context small and avoid baking local state into the image.
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+.env
+.env.*
+!.env.example
+
+Dockerfile
+.dockerignore
+README.md
+*.md
