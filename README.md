@@ -25,6 +25,8 @@ the React components clean.
 | 📍 | **Geolocation** — a "Use my location" button using the browser Geolocation API, reverse-geocoded to a real place name |
 | 🔄 | **Unit toggle** — °C/°F, and with it km/h ⇄ mph, hPa ⇄ inHg, mm ⇄ in. Converted client-side, so switching is instant and never refetches |
 | 🕘 | **Search history** — your recent cities as clickable chips; re-searching uses the stored coordinates and skips geocoding |
+| 📈 | **Local climate insights** — how the last 30 days compare with the same stretch last year, where this month sits in the local rainfall year, and today against the seasonal normal. Derived from several years of ERA5 history for those exact coordinates |
+| 💾 | **Picks up where you left off** — the last location, recent cities and unit choice persist across reloads. On a first visit it asks for your device location and falls back to a default city if you decline |
 | ⏳ | **Loading & error states** — a spinner on first load, a top progress bar on refetch (the previous data stays on screen rather than flashing a skeleton), and specific, friendly messages for "city not found", network failures and a cold-starting backend |
 | 🎨 | **Polish** — the background tint responds to the current weather and to day/night, glassmorphism cards, staggered entry animations, full keyboard support in the search dropdown, and `prefers-reduced-motion` respected |
 
@@ -158,11 +160,20 @@ display, which is why the unit toggle needs no refetch.
 | `GET` | `/api/health` | Liveness check. Ping to wake a sleeping Render instance. |
 | `GET` | `/api/geocode?q=London&count=5` | City name → candidate locations (powers the dropdown). |
 | `GET` | `/api/weather?city=London&hours=24` | Geocode + full forecast for the best match. |
-| `GET` | `/api/weather/coords?lat=51.5&lon=-0.13&label=London&hours=24` | Forecast for explicit coordinates. Omit `label` to reverse-geocode a place name. |
+| `GET` | `/api/weather/coords?lat=51.5&lon=-0.13&name=London&admin1=England&country=United+Kingdom` | Forecast for explicit coordinates. Pass the place's parts to render it exactly as searched; omit them all to reverse-geocode a name. |
+| `GET` | `/api/insights?lat=51.5&lon=-0.13&tmax=24` | Climate context from the ERA5 archive. Fails soft — returns an empty list rather than an error, so the panel just hides. |
 
 Errors come back as `{"detail": "..."}` with a meaningful status code (`404` for an unknown city,
-`503` when Open-Meteo is unreachable). Forecast responses are cached in-process for 10 minutes and
-geocoding results for 24 hours, which keeps the app well inside Open-Meteo's free-tier limits.
+`503` when Open-Meteo is unreachable). Forecast responses are cached in-process for 10 minutes,
+geocoding for 24 hours and archive history for 24 hours, which keeps the app well inside
+Open-Meteo's free-tier limits.
+
+The insights endpoint reads Open-Meteo's [historical archive](https://open-meteo.com/en/docs/historical-weather-api)
+(ERA5 reanalysis) — also free, also no key. One request covers five years of dailies, and every
+fact is computed from it. Nothing is hardcoded per country: the "monsoon season" label, for
+instance, is earned by a real climatological test — at least 70% of annual rainfall concentrated in
+the wettest four consecutive months, *and* enough absolute rain to mean something. So it appears for
+Mumbai (91%) and not for Cairo, whose rainfall is just as lopsided but essentially nil.
 
 Try it:
 
@@ -356,10 +367,10 @@ The UI handles it gracefully: a network failure against a remote backend shows *
 
 A few decisions worth knowing if you want to build on this:
 
-- **Search history lives in React state**, so it resets on reload. To persist it, seed `useState` from
-  `localStorage` in `App.jsx` and write to it whenever `history` changes.
-- **The default city is London** (`DEFAULT_CITY` in `App.jsx`) so the dashboard is never empty on first
-  paint. Change it, or call `useMyLocation()` on mount if you'd rather prompt for geolocation.
+- **State persists in `localStorage`** (`src/utils/storage.js`): the last location, recent cities and
+  unit choice. Every access is guarded, because Safari private mode throws rather than degrading.
+- **A first visit asks for geolocation** and quietly falls back to `DEFAULT_CITY` in `App.jsx` if
+  permission is refused — a new visitor never gets an error as their first impression.
 - **The cache is in-process**, which is right for a single free instance. For horizontal scaling, swap
   `TTLCache` in `open_meteo.py` for Redis.
 - **Times are rendered in the location's timezone** — a Tokyo forecast reads in Tokyo time regardless of

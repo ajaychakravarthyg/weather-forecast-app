@@ -21,8 +21,9 @@ from fastapi import Depends, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .models import GeocodeResults, Location, WeatherResponse
-from .open_meteo import OpenMeteoClient, WeatherError
+from .insights import build_facts, fetch_climate
+from .models import GeocodeResults, InsightsResponse, Location, WeatherResponse
+from .open_meteo import OpenMeteoClient, WeatherError, join_label
 
 # ----------------------------------------------------------------------------- #
 # Configuration
@@ -121,16 +122,37 @@ async def weather_by_coords(
     client: ClientDep,
     lat: Annotated[float, Query(ge=-90, le=90, description="Latitude")],
     lon: Annotated[float, Query(ge=-180, le=180, description="Longitude")],
-    label: Annotated[str | None, Query(max_length=120, description="Override the display name")] = None,
+    name: Annotated[str | None, Query(max_length=120, description="Place name")] = None,
+    admin1: Annotated[str | None, Query(max_length=120, description="State / region")] = None,
+    country: Annotated[str | None, Query(max_length=120, description="Country name")] = None,
+    country_code: Annotated[str | None, Query(max_length=2, description="ISO-3166 alpha-2")] = None,
+    label: Annotated[str | None, Query(max_length=160, description="Full display label")] = None,
     hours: Annotated[int, Query(ge=1, le=48, description="Hours of hourly forecast")] = 24,
 ) -> WeatherResponse:
-    """Forecast for explicit coordinates — used by the "Use my location" button.
+    """Forecast for explicit coordinates — used by "Use my location", by the
+    search dropdown, and when restoring the last place on startup.
 
-    Attempts a free reverse-geocode so the card shows a real place name; falls
-    back to the rounded coordinates if that lookup fails.
+    Callers that already know the place pass its parts back (`name`, `admin1`,
+    `country`…), so the card renders identically to the original lookup. That
+    round-trip matters: passing only a flat `label` would collapse
+    "Tiruppur / Tamil Nadu, India" into a single run-on city name.
+
+    With nothing but coordinates we attempt a free reverse-geocode, and fall
+    back to the rounded coordinates if that fails too.
     """
     location = None
-    if label:
+    if name:
+        location = Location(
+            name=name,
+            latitude=lat,
+            longitude=lon,
+            timezone="auto",
+            admin1=admin1,
+            country=country,
+            country_code=country_code,
+            label=label or join_label(name, admin1, country),
+        )
+    elif label:
         location = Location(name=label, latitude=lat, longitude=lon, timezone="auto", label=label)
     else:
         location = await client.reverse_geocode(lat, lon)
@@ -140,3 +162,25 @@ async def weather_by_coords(
         location = Location(name=fallback, latitude=lat, longitude=lon, timezone="auto", label=fallback)
 
     return await client.forecast(location, hourly_hours=hours)
+
+
+@app.get("/api/insights", response_model=InsightsResponse, tags=["weather"])
+async def insights(
+    client: ClientDep,
+    lat: Annotated[float, Query(ge=-90, le=90, description="Latitude")],
+    lon: Annotated[float, Query(ge=-180, le=180, description="Longitude")],
+    tmax: Annotated[
+        float | None,
+        Query(description="Today's forecast high, to compare against the seasonal normal"),
+    ] = None,
+) -> InsightsResponse:
+    """Climate context for a location, derived from several years of ERA5 history.
+
+    Deliberately fails soft: this panel is a bonus, so an archive outage returns
+    an empty list and the UI simply hides the card rather than breaking the page.
+    """
+    try:
+        climate = await fetch_climate(client, lat, lon)
+        return InsightsResponse(facts=build_facts(climate, today_max=tmax))
+    except WeatherError:
+        return InsightsResponse(facts=[])

@@ -31,6 +31,8 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 # Free, key-less reverse geocoder used only to put a friendly name on the
 # "Use my location" result. Failure here is non-fatal (we fall back to coords).
 REVERSE_GEOCODE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client"
+# ERA5 reanalysis history — also free and key-less. Used for the climate insights.
+ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
 CURRENT_FIELDS = [
     "temperature_2m",
@@ -130,6 +132,9 @@ class TTLCache:
 
 _forecast_cache = TTLCache(ttl_seconds=600)  # 10 minutes
 _geocode_cache = TTLCache(ttl_seconds=86_400)  # 24 hours — city coords never move
+# Historical data for a fixed date range is immutable, so cache it for a day and
+# keep the payload count low (each entry is several years of dailies).
+_archive_cache = TTLCache(ttl_seconds=86_400, max_entries=128)
 
 
 class OpenMeteoClient:
@@ -205,10 +210,20 @@ class OpenMeteoClient:
             country=payload.get("countryName"),
             country_code=payload.get("countryCode"),
             admin1=payload.get("principalSubdivision"),
-            label=_join_label(name, payload.get("principalSubdivision"), payload.get("countryName")),
+            label=join_label(name, payload.get("principalSubdivision"), payload.get("countryName")),
         )
         await _geocode_cache.set(cache_key, location)
         return location
+
+    # ------------------------------- archive ------------------------------ #
+    async def get_archive(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Raw ERA5 archive request, cached hard — history doesn't change."""
+        key = "arch:" + ",".join(f"{k}={v}" for k, v in sorted(params.items()))
+        if (cached := await _archive_cache.get(key)) is not None:
+            return cached
+        payload = await self._get_json(ARCHIVE_URL, params)
+        await _archive_cache.set(key, payload)
+        return payload
 
     # ------------------------------ forecast ------------------------------ #
     async def forecast(self, location: Location, hourly_hours: int = 24) -> WeatherResponse:
@@ -235,7 +250,7 @@ class OpenMeteoClient:
 # --------------------------------------------------------------------------- #
 # Mapping helpers
 # --------------------------------------------------------------------------- #
-def _join_label(*parts: str | None) -> str:
+def join_label(*parts: str | None) -> str:
     """Join the non-empty, non-duplicate parts of a place name with commas."""
     seen: list[str] = []
     for part in parts:
@@ -255,7 +270,7 @@ def _to_location(item: dict[str, Any]) -> Location:
         country_code=item.get("country_code"),
         admin1=item.get("admin1"),
         population=item.get("population"),
-        label=_join_label(name, item.get("admin1"), item.get("country")),
+        label=join_label(name, item.get("admin1"), item.get("country")),
     )
 
 

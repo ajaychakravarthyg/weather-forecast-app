@@ -160,10 +160,20 @@ export default function WeatherBackground({
       off.width = w
       off.height = h
       const octx = off.getContext('2d')
-      octx.fillStyle = isDay ? '#e8f0ff' : '#93a6c8'
+      const tint = isDay ? '232, 240, 255' : '147, 166, 200'
+      // Each puff is a radial gradient rather than a flat disc, so the cloud has
+      // a soft translucent edge instead of a hard outline.
       for (const p of CLOUD_PUFFS) {
+        const cx = w / 2 + p.dx * maxScale
+        const cy = h / 2 + p.dy * maxScale
+        const r = p.r * maxScale
+        const grad = octx.createRadialGradient(cx, cy, r * 0.15, cx, cy, r)
+        grad.addColorStop(0, `rgba(${tint}, 0.85)`)
+        grad.addColorStop(0.55, `rgba(${tint}, 0.42)`)
+        grad.addColorStop(1, `rgba(${tint}, 0)`)
+        octx.fillStyle = grad
         octx.beginPath()
-        octx.arc(w / 2 + p.dx * maxScale, h / 2 + p.dy * maxScale, p.r * maxScale, 0, TAU)
+        octx.arc(cx, cy, r, 0, TAU)
         octx.fill()
       }
       cloudSprite = { canvas: off, w, h, scale: maxScale }
@@ -476,14 +486,19 @@ export default function WeatherBackground({
       ctx.fillStyle = glowCache.glow
       ctx.fillRect(0, 0, width, height)
 
-      // The disc itself, warmer and larger near the horizon.
+      // The disc itself, warmer and larger near the horizon. Built as a gradient
+      // that fades out at the rim so it reads as a soft luminous body rather
+      // than a flat sticker pasted on the sky.
       const discR = bodyRadius() + (1 - sky.altitude) * 8
-      ctx.globalAlpha = Math.min(1, strength * 1.2)
-      ctx.fillStyle = sky.altitude > 0.35 ? '#fff4d2' : '#ffd08a'
+      const core = sky.altitude > 0.35 ? '255, 244, 210' : '255, 208, 138'
+      const disc = ctx.createRadialGradient(x, y, 0, x, y, discR * 1.5)
+      disc.addColorStop(0, `rgba(${core}, ${0.85 * strength})`)
+      disc.addColorStop(0.6, `rgba(${core}, ${0.45 * strength})`)
+      disc.addColorStop(1, `rgba(${core}, 0)`)
+      ctx.fillStyle = disc
       ctx.beginPath()
-      ctx.arc(x, y, discR, 0, TAU)
+      ctx.arc(x, y, discR * 1.5, 0, TAU)
       ctx.fill()
-      ctx.globalAlpha = 1
 
       // Slowly rotating soft rays — one drawImage of the cached fan.
       if (raySprite) {
@@ -514,14 +529,15 @@ export default function WeatherBackground({
       ctx.fill()
 
       // Earthshine: the unlit disc stays faintly visible.
-      ctx.globalAlpha = 0.1 * strength
+      ctx.globalAlpha = 0.08 * strength
       ctx.fillStyle = '#8fa4c8'
       ctx.beginPath()
       ctx.arc(x, y, r, 0, TAU)
       ctx.fill()
 
-      // The lit crescent/gibbous/full disc.
-      ctx.globalAlpha = Math.min(1, strength * 1.15)
+      // The lit crescent/gibbous/full disc. Kept translucent so it sits in the
+      // sky rather than on top of it — but still crisp enough to read the phase.
+      ctx.globalAlpha = Math.min(0.82, strength * 0.9)
       ctx.fillStyle = '#eef3ff'
       drawLitMoon(x, y, r, moon.phase)
 

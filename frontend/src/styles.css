@@ -54,16 +54,24 @@ dt {
 :root {
   color-scheme: dark;
 
-  /* Surfaces. --chart-surface matches CHART_SURFACE in src/theme.js — the
+  /* Surfaces — iOS-Weather-style frosted glass: a light translucent wash over
+     the live sky, not an opaque panel. The sky animation stays visible through
+     every card. --chart-surface matches CHART_SURFACE in src/theme.js, the
      colour the chart's series hues were contrast-validated against. */
   --page-base: #0b1220;
   --chart-surface: #1a2336;
-  --card-bg: rgba(17, 25, 42, 0.52);
-  --card-bg-hover: rgba(23, 33, 54, 0.62);
-  --card-border: rgba(255, 255, 255, 0.11);
-  --card-border-strong: rgba(255, 255, 255, 0.18);
-  --inset: rgba(255, 255, 255, 0.045);
-  --inset-hover: rgba(255, 255, 255, 0.08);
+  --card-bg: rgba(255, 255, 255, 0.1);
+  --card-bg-hover: rgba(255, 255, 255, 0.16);
+  --card-border: rgba(255, 255, 255, 0.16);
+  --card-border-strong: rgba(255, 255, 255, 0.26);
+  --inset: rgba(255, 255, 255, 0.1);
+  --inset-hover: rgba(255, 255, 255, 0.17);
+
+  /* Glass recipe, applied consistently to every floating surface. */
+  --glass-blur: blur(30px) saturate(180%);
+  /* Text sits directly on translucent glass over a moving sky, so a soft
+     shadow keeps it legible without darkening the panel. */
+  --text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 
   /* Ink — cool neutrals, correct on a navy surface. */
   --ink-primary: #ffffff;
@@ -261,14 +269,15 @@ body {
 /* --- layer 3: legibility scrim ------------------------------------------- */
 /* Rain, snow and lightning are busy. This wash sits between the scene and the
    content so body text keeps its contrast without dulling the animation. */
+/* Deliberately light: the cards now carry their own frosted blur, so the scrim
+   only needs to take the edge off the busiest scenes. Keeping it subtle is what
+   lets the sky stay visible through the whole dashboard. */
 .app__scrim {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(120% 90% at 50% 0%, rgba(6, 10, 20, 0) 0%, rgba(6, 10, 20, 0.34) 70%),
-    linear-gradient(180deg, rgba(6, 10, 20, 0.12) 0%, rgba(6, 10, 20, 0.42) 100%);
+  background: linear-gradient(180deg, rgba(6, 10, 20, 0.06) 0%, rgba(6, 10, 20, 0.26) 100%);
 }
 
 /* Indeterminate bar while refetching with data already on screen. */
@@ -302,14 +311,16 @@ body {
 }
 
 /* --------------------------------- topbar --------------------------------- */
-/* Kept fairly transparent so the sky (and a high sun/moon) reads through it. */
+/* Kept very transparent so the sky (and a high sun/moon) reads through it. */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 30;
-  backdrop-filter: blur(14px) saturate(140%);
-  background: rgba(9, 14, 26, 0.42);
-  border-bottom: 1px solid var(--card-border);
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  text-shadow: var(--text-shadow);
 }
 
 .topbar__inner {
@@ -431,7 +442,8 @@ body {
   background: var(--card-bg);
   border-color: var(--card-border);
   color: var(--ink-secondary);
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .btn--ghost:not(:disabled):hover {
@@ -468,10 +480,11 @@ body {
   display: inline-flex;
   padding: 3px;
   gap: 2px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.12);
   border: 1px solid var(--card-border);
   border-radius: 999px;
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .segmented__btn {
@@ -538,7 +551,8 @@ body {
   color: var(--ink-primary);
   font: inherit;
   font-size: 0.9375rem;
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   transition:
     border-color var(--med) var(--ease),
     background var(--med) var(--ease),
@@ -583,8 +597,9 @@ body {
   overflow: hidden;
   border: 1px solid var(--card-border-strong);
   border-radius: var(--radius-md);
-  background: rgba(13, 20, 34, 0.96);
-  backdrop-filter: blur(20px);
+  background: rgba(22, 32, 52, 0.72);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-card);
   animation: pop-in 180ms var(--ease-out);
 }
@@ -676,6 +691,12 @@ body {
   animation: pulse 1.2s var(--ease) infinite;
 }
 
+/* Amber once the reading is old enough to be misleading. */
+.freshness__dot.is-stale {
+  background: #fab219;
+  box-shadow: 0 0 0 3px rgba(250, 178, 25, 0.2);
+}
+
 @keyframes pulse {
   50% {
     opacity: 0.35;
@@ -722,7 +743,8 @@ body {
   color: var(--ink-secondary);
   font-size: 0.8125rem;
   font-weight: 520;
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   transition:
     background var(--med) var(--ease),
     color var(--med) var(--ease),
@@ -785,10 +807,12 @@ body {
   border: 1px solid var(--card-border);
   border-radius: var(--radius-xl);
   background: var(--card-bg);
-  backdrop-filter: blur(22px) saturate(130%);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-card);
+  text-shadow: var(--text-shadow);
   animation: rise var(--slow) var(--ease-out) both;
-  transition: border-color var(--med) var(--ease);
+  transition: border-color var(--med) var(--ease), background var(--med) var(--ease);
 }
 
 /* A hairline highlight along the top edge — reads as glass catching light. */
@@ -823,6 +847,9 @@ body {
 .content > .card:nth-child(4) {
   animation-delay: 210ms;
 }
+.content > .card:nth-child(5) {
+  animation-delay: 280ms;
+}
 
 .card__header {
   display: flex;
@@ -832,10 +859,14 @@ body {
   margin-bottom: 16px;
 }
 
+/* iOS Weather keys its panels with a small, quiet, uppercase caption rather
+   than a heavy heading — the data is the loud part. */
 .card__title {
-  font-size: 1rem;
-  font-weight: 640;
-  letter-spacing: -0.01em;
+  font-size: 0.78125rem;
+  font-weight: 620;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
 }
 
 .card__hint {
@@ -1064,8 +1095,9 @@ body {
   padding: 10px 12px;
   border: 1px solid var(--card-border-strong);
   border-radius: var(--radius-sm);
-  background: rgba(11, 17, 30, 0.97);
-  backdrop-filter: blur(14px);
+  background: rgba(18, 27, 45, 0.8);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: 0 14px 32px -14px rgba(0, 0, 0, 0.85);
 }
 
@@ -1300,6 +1332,97 @@ body {
   border-radius: 999px;
   background: linear-gradient(90deg, var(--series-cool), var(--series-warm));
   transition: left var(--slow) var(--ease), width var(--slow) var(--ease);
+}
+
+/* -------------------------------- insights -------------------------------- */
+.insights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.insights__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 15px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--inset);
+  transition:
+    background var(--med) var(--ease),
+    border-color var(--med) var(--ease),
+    transform var(--med) var(--ease);
+}
+
+.insights__item:not(.is-loading):hover {
+  background: var(--inset-hover);
+  border-color: var(--card-border);
+  transform: translateY(-2px);
+}
+
+.insights__icon {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  flex: none;
+}
+
+.insights__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.insights__headline {
+  font-size: 0.9375rem;
+  font-weight: 620;
+  letter-spacing: -0.005em;
+}
+
+.insights__detail {
+  color: var(--ink-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+/* Skeletons while the archive request is in flight — the card keeps its shape
+   instead of popping in and shifting everything below it. */
+.skeleton {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 25%,
+    rgba(255, 255, 255, 0.14) 37%,
+    rgba(255, 255, 255, 0.06) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s var(--ease) infinite;
+}
+
+.skeleton--dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.skeleton--line {
+  width: 100%;
+  height: 11px;
+}
+
+.skeleton--short {
+  width: 62%;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: 0 50%;
+  }
 }
 
 /* --------------------------- loading & errors ----------------------------- */

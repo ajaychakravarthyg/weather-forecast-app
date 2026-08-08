@@ -93,5 +93,18 @@ class WeatherResponse(BaseModel):
     units: Units = Units()
 
 
+class Fact(BaseModel):
+    """One derived, human-readable observation about a location's climate."""
+
+    id: str
+    icon: str
+    headline: str
+    detail: str
+
+
+class InsightsResponse(BaseModel):
+    facts: list[Fact] = []
+
+
 class ErrorResponse(BaseModel):
     detail: str

@@ -82,7 +82,34 @@ export function fetchWeatherByCity(city, { signal } = {}) {
   return request('/api/weather', { city }, { signal })
 }
 
-/** Full forecast for explicit coordinates. `label` overrides the display name. */
-export function fetchWeatherByCoords(lat, lon, { label, signal } = {}) {
-  return request('/api/weather/coords', { lat, lon, label }, { signal })
+/**
+ * Full forecast for explicit coordinates.
+ *
+ * Pass the place's parts when you already know them (from the search dropdown or
+ * from the saved last location) so the card renders exactly as it did the first
+ * time. With coordinates alone the backend reverse-geocodes a name.
+ */
+export function fetchWeatherByCoords(lat, lon, { place, signal } = {}) {
+  return request(
+    '/api/weather/coords',
+    {
+      lat,
+      lon,
+      name: place?.name,
+      admin1: place?.admin1,
+      country: place?.country,
+      country_code: place?.country_code,
+      label: place?.label,
+    },
+    { signal },
+  )
+}
+
+/**
+ * Climate context (year-on-year comparisons, season, seasonal normals).
+ * Backed by the historical archive, so it's slower than the forecast — fetch it
+ * separately rather than blocking the main view on it.
+ */
+export function fetchInsights(lat, lon, { tmax, signal } = {}) {
+  return request('/api/insights', { lat, lon, tmax }, { signal })
 }
