@@ -1,0 +1,160 @@
+name: CI
+
+# Build the frontend bundle once, hand it to the image build as an artifact, and
+# publish both container images. The bundle that gets built is byte-for-byte the
+# bundle that ships — nothing is rebuilt inside the image.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push supersedes an in-flight run on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  NODE_VERSION: '22'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  # --------------------------------------------------------------------------
+  # 1. Build the React bundle and publish it as a workflow artifact.
+  # --------------------------------------------------------------------------
+  build-frontend:
+    name: Build frontend bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci` over `npm install`: installs exactly the lockfile, and fails if
+      # package.json and the lock have drifted apart.
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Show bundle size
+        working-directory: frontend
+        run: du -sh dist && ls -lh dist/assets
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+          if-no-files-found: error
+
+  # --------------------------------------------------------------------------
+  # 2. Cheap sanity check on the backend — an image whose app can't import is
+  #    worse than a ten-second check here.
+  # --------------------------------------------------------------------------
+  check-backend:
+    name: Check backend imports
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Import the app and list its routes
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          from app.main import app
+          routes = [r.path for r in app.routes if r.path.startswith('/api')]
+          assert routes, "no /api routes registered"
+          print("routes:", ", ".join(sorted(routes)))
+          PY
+
+  # --------------------------------------------------------------------------
+  # 3. Build both images. The frontend image consumes the artifact from step 1
+  #    via the Dockerfile's `prebuilt` target rather than running npm again.
+  # --------------------------------------------------------------------------
+  images:
+    name: Build ${{ matrix.name }} image
+    runs-on: ubuntu-latest
+    needs: [build-frontend, check-backend]
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: frontend
+            context: ./frontend
+            target: prebuilt
+          - name: backend
+            context: ./backend
+            target: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      # Only the frontend needs the bundle; downloading it into the build
+      # context is what the `prebuilt` target copies from.
+      - name: Download frontend bundle
+        if: matrix.name == 'frontend'
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Pushing is skipped on pull requests: a fork's token cannot write
+      # packages, and unreviewed code shouldn't publish an image anyway.
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          target: ${{ matrix.target }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Layer cache lives in the same registry, so repeat builds are fast.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

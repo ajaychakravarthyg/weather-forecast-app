@@ -275,6 +275,52 @@ docker build -t weather-frontend \
 
 ---
 
+## 🔁 CI
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request.
+
+```
+build-frontend ─┐
+                ├─► images (frontend + backend, in parallel)
+check-backend  ─┘
+```
+
+1. **build-frontend** — `npm ci` (lockfile-exact) then `npm run build`, and uploads
+   `frontend/dist` as a workflow artifact.
+2. **check-backend** — installs the requirements and imports the app, asserting the
+   `/api` routes register. Ten seconds, and it stops an image that can't boot.
+3. **images** — builds both containers on a matrix. The frontend image downloads the
+   artifact and uses the Dockerfile's **`prebuilt`** target, which just copies `dist/`
+   into nginx rather than running npm a second time. **The bundle that was built is
+   byte-for-byte the bundle that ships** — no chance of the image containing something
+   the pipeline never produced.
+
+Images publish to GitHub Container Registry, free for public repos and authenticated
+with the built-in `GITHUB_TOKEN` — no secrets to configure:
+
+```
+ghcr.io/<you>/weather-forecast-app-frontend:latest
+ghcr.io/<you>/weather-forecast-app-backend:latest
+```
+
+Tagged `latest` on `main`, plus a short SHA tag on every build, the branch name, and
+semver tags for `v*` releases. Pull requests **build but do not push** — a fork's token
+can't write packages, and unreviewed code shouldn't publish an image. Layer cache is
+kept in GitHub Actions cache, so repeat builds are quick.
+
+To reproduce the CI image build locally:
+
+```bash
+cd frontend
+npm ci && npm run build
+docker build --target prebuilt -t weather-frontend .
+```
+
+> The plain `docker compose up --build` path is untouched — it still uses the `prod`
+> target and builds the bundle inside the image, so you need no prerequisites.
+
+---
+
 ## ☁️ Deploy for free
 
 Two free services: **Render** for the Python backend, **Vercel** for the React frontend. Deploy the

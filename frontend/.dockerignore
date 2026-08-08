@@ -1,8 +1,11 @@
 # node_modules is installed inside the image — copying the host's copy would be
 # slow and can carry the wrong platform's native binaries (e.g. esbuild).
 node_modules/
-dist/
 dist-ssr/
+
+# dist/ is deliberately NOT ignored: the `prebuilt` target copies it straight in
+# (see Dockerfile). The default `prod` target is unaffected — it builds its own
+# dist inside the image and never reads the host's.
 
 .env
 .env.*

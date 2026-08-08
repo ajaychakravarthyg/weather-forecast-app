@@ -39,8 +39,11 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN npm run build
 
 
-# ------------------------------------------------------------------- prod ---- #
-FROM nginx:1.27-alpine AS prod
+# ----------------------------------------------------------------- runtime --- #
+# The nginx runtime, shared by both ways of getting a bundle in. Everything
+# except the source of /usr/share/nginx/html lives here, so the two targets
+# below can never drift apart.
+FROM nginx:1.27-alpine AS runtime
 
 # Substituted into the config at container start (see nginx.conf.template).
 ENV BACKEND_ORIGIN=http://backend:8000
@@ -48,9 +51,24 @@ ENV BACKEND_ORIGIN=http://backend:8000
 ENV NGINX_ENVSUBST_FILTER=BACKEND_ORIGIN
 
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
-COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD wget --quiet --spider --tries=1 http://127.0.0.1/ || exit 1
+
+
+# ------------------------------------------------------------------- prod ---- #
+# Default: build the bundle inside Docker. One command, no prerequisites.
+FROM runtime AS prod
+COPY --from=build /app/dist /usr/share/nginx/html
+
+
+# --------------------------------------------------------------- prebuilt ---- #
+# CI path: consume a dist/ that was built earlier in the pipeline and passed
+# along as an artifact, instead of running npm again inside the image build.
+# The bundle that was tested is then byte-for-byte the bundle that ships.
+#
+#   npm run build && docker build --target prebuilt -t weather-frontend .
+FROM runtime AS prebuilt
+COPY dist /usr/share/nginx/html
