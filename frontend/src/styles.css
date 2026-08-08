@@ -2,13 +2,14 @@
    Weather Dashboard — styles
 
    Layer order, back to front:
-     .app__backdrop   gradient sky + colour glows   (z -3)
-     .weather-canvas  animated weather scene        (z -2)
-     .app__scrim      legibility wash               (z -1)
-     content                                       (z  0+)
+     .app__backdrop   solid fallback colour          (z -3)
+     .weather-canvas  sky gradient + weather scene   (z -2)
+     .app__scrim      vignette                       (z -1)
+     .app__grain      film grain                     (z -1)
+     content                                        (z  0+)
 
-   The sky gradient is keyed off [data-weather] / [data-daylight] on .app, so it
-   transitions smoothly whenever conditions change.
+   The sky is painted on the canvas rather than in CSS, so it can follow the
+   sun's height continuously instead of switching between fixed themes.
    ========================================================================== */
 
 /* ---------------------------------- reset --------------------------------- */
@@ -60,12 +61,16 @@ dt {
      colour the chart's series hues were contrast-validated against. */
   --page-base: #0b1220;
   --chart-surface: #1a2336;
-  --card-bg: rgba(255, 255, 255, 0.1);
-  --card-bg-hover: rgba(255, 255, 255, 0.16);
-  --card-border: rgba(255, 255, 255, 0.16);
-  --card-border-strong: rgba(255, 255, 255, 0.26);
-  --inset: rgba(255, 255, 255, 0.1);
-  --inset-hover: rgba(255, 255, 255, 0.17);
+  /* A *dark* frosted material, which is what iOS Weather actually uses over a
+     bright sky — a white glass would leave white text at ~2:1 contrast on a
+     sunny day. Dark glass keeps text legible whatever the sky is doing, and the
+     blur still carries the sky's colour and movement through it. */
+  --card-bg: rgba(8, 15, 28, 0.38);
+  --card-bg-hover: rgba(8, 15, 28, 0.48);
+  --card-border: rgba(255, 255, 255, 0.14);
+  --card-border-strong: rgba(255, 255, 255, 0.24);
+  --inset: rgba(255, 255, 255, 0.08);
+  --inset-hover: rgba(255, 255, 255, 0.15);
 
   /* Glass recipe, applied consistently to every floating surface. */
   --glass-blur: blur(30px) saturate(180%);
@@ -101,83 +106,7 @@ dt {
   --med: 240ms;
   --slow: 420ms;
 
-  /* Condition tint — overridden per weather group below. */
-  --sky-top: #16233d;
-  --sky-mid: #101a2e;
-  --sky-bottom: #070c16;
-  --tint-one: #1d4ed8;
-  --tint-two: #0ea5e9;
-
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-}
-
-/* Condition-driven skies. Daytime reads bright and open; night cools and
-   deepens; storms go heavy. */
-.app[data-weather='clear'] {
-  --sky-top: #2b6fb8;
-  --sky-mid: #1b4a80;
-  --sky-bottom: #0a1526;
-  --tint-one: #f59e0b;
-  --tint-two: #38bdf8;
-}
-.app[data-weather='mainly-clear'] {
-  --sky-top: #285f9e;
-  --sky-mid: #1a3f6d;
-  --sky-bottom: #091324;
-  --tint-one: #3b82f6;
-  --tint-two: #22d3ee;
-}
-.app[data-weather='cloudy'] {
-  --sky-top: #3c4a5e;
-  --sky-mid: #263241;
-  --sky-bottom: #0b1220;
-  --tint-one: #64748b;
-  --tint-two: #334155;
-}
-.app[data-weather='fog'] {
-  --sky-top: #4a5568;
-  --sky-mid: #2c3646;
-  --sky-bottom: #0d141f;
-  --tint-one: #94a3b8;
-  --tint-two: #475569;
-}
-.app[data-weather='drizzle'],
-.app[data-weather='rain'],
-.app[data-weather='showers'] {
-  --sky-top: #274566;
-  --sky-mid: #1a2e46;
-  --sky-bottom: #080e18;
-  --tint-one: #2563eb;
-  --tint-two: #1e3a8a;
-}
-.app[data-weather='snow'],
-.app[data-weather='freezing'] {
-  --sky-top: #53698a;
-  --sky-mid: #33445e;
-  --sky-bottom: #0d1421;
-  --tint-one: #93c5fd;
-  --tint-two: #38bdf8;
-}
-.app[data-weather='thunderstorm'] {
-  --sky-top: #2d2a52;
-  --sky-mid: #1c1b38;
-  --sky-bottom: #08070f;
-  --tint-one: #7c3aed;
-  --tint-two: #1e1b4b;
-}
-
-/* Night deepens whatever the condition set. */
-.app[data-daylight='night'] {
-  --sky-top: #16224a;
-  --sky-mid: #0d1430;
-  --sky-bottom: #05070f;
-  --tint-one: #4338ca;
-  --tint-two: #0f172a;
-}
-.app[data-daylight='night'][data-weather='thunderstorm'] {
-  --sky-top: #221f42;
-  --sky-mid: #14122a;
-  --sky-bottom: #05040a;
 }
 
 /* ---------------------------------- shell --------------------------------- */
@@ -197,63 +126,14 @@ body {
   isolation: isolate;
 }
 
-/* --- layer 1: gradient sky ------------------------------------------------ */
+/* --- layer 1: fallback base -----------------------------------------------
+   The sky itself is painted on the canvas (WeatherBackground) so it can follow
+   the sun continuously. This solid colour only shows if the canvas fails. */
 .app__backdrop {
   position: fixed;
   inset: 0;
   z-index: -3;
-  overflow: hidden;
-  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 45%, var(--sky-bottom) 100%);
-  transition: background var(--slow) var(--ease);
-}
-
-.app__glow {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(100px);
-  opacity: 0.34;
-  transition: background var(--slow) var(--ease);
-  will-change: transform;
-}
-
-.app__glow--one {
-  top: -16vh;
-  left: -10vw;
-  width: 48vw;
-  height: 48vw;
-  min-width: 320px;
-  min-height: 320px;
-  background: var(--tint-one);
-  animation: drift-a 30s ease-in-out infinite alternate;
-}
-
-.app__glow--two {
-  right: -14vw;
-  bottom: -20vh;
-  width: 54vw;
-  height: 54vw;
-  min-width: 340px;
-  min-height: 340px;
-  background: var(--tint-two);
-  animation: drift-b 36s ease-in-out infinite alternate;
-}
-
-@keyframes drift-a {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(6vw, 5vh, 0) scale(1.12);
-  }
-}
-
-@keyframes drift-b {
-  from {
-    transform: translate3d(0, 0, 0) scale(1.05);
-  }
-  to {
-    transform: translate3d(-5vw, -4vh, 0) scale(0.95);
-  }
+  background: var(--page-base);
 }
 
 /* --- layer 2: animated weather scene ------------------------------------- */
@@ -266,18 +146,31 @@ body {
   pointer-events: none;
 }
 
-/* --- layer 3: legibility scrim ------------------------------------------- */
-/* Rain, snow and lightning are busy. This wash sits between the scene and the
-   content so body text keeps its contrast without dulling the animation. */
-/* Deliberately light: the cards now carry their own frosted blur, so the scrim
-   only needs to take the edge off the busiest scenes. Keeping it subtle is what
-   lets the sky stay visible through the whole dashboard. */
+/* --- layer 3: vignette + grain -------------------------------------------- */
+/* A vignette gives the sky depth, and keeps text at the edges legible without
+   flattening the whole scene the way a full-frame wash would. */
 .app__scrim {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(6, 10, 20, 0.06) 0%, rgba(6, 10, 20, 0.26) 100%);
+  background:
+    radial-gradient(125% 95% at 50% 28%, rgba(4, 8, 16, 0) 38%, rgba(4, 8, 16, 0.42) 100%),
+    linear-gradient(180deg, rgba(4, 8, 16, 0) 55%, rgba(4, 8, 16, 0.22) 100%);
+}
+
+/* Fine film grain. Smooth gradients read as CGI; a barely-visible noise pass is
+   the single cheapest thing that makes a rendered sky look photographic.
+   Self-contained SVG turbulence — no image asset, no network request. */
+.app__grain {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
 }
 
 /* Indeterminate bar while refetching with data already on screen. */
@@ -809,21 +702,16 @@ body {
   background: var(--card-bg);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-card);
+  /* Drop shadow for lift, plus inset lips top and bottom. Those two hairlines
+     are what read as a real pane of glass catching light rather than a flat
+     translucent rectangle. */
+  box-shadow:
+    0 24px 50px -28px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.14);
   text-shadow: var(--text-shadow);
   animation: rise var(--slow) var(--ease-out) both;
   transition: border-color var(--med) var(--ease), background var(--med) var(--ease);
-}
-
-/* A hairline highlight along the top edge — reads as glass catching light. */
-.card::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1px;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
-  pointer-events: none;
 }
 
 @keyframes rise {

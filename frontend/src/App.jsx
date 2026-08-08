@@ -260,11 +260,8 @@ export default function App() {
 
   return (
     <div className="app" data-weather={group} data-daylight={isDay ? 'day' : 'night'}>
-      {/* Gradient sky, then the animated canvas scene on top of it. */}
-      <div className="app__backdrop" aria-hidden="true">
-        <span className="app__glow app__glow--one" />
-        <span className="app__glow app__glow--two" />
-      </div>
+      {/* Base colour behind everything, in case the canvas can't initialise. */}
+      <div className="app__backdrop" aria-hidden="true" />
       <WeatherBackground
         group={group}
         isDay={isDay}
@@ -275,8 +272,11 @@ export default function App() {
         sunset={current?.sunset ?? null}
         timeZone={data?.location?.timezone ?? null}
       />
-      {/* A translucent scrim keeps text legible over the busiest scenes. */}
+      {/* Vignette for depth, then a fine grain pass. Real skies are never
+          perfectly smooth — a little noise is what stops a gradient reading
+          as computer graphics. */}
       <div className="app__scrim" aria-hidden="true" />
+      <div className="app__grain" aria-hidden="true" />
 
       {refreshing && <div className="topprogress" role="presentation" />}
 

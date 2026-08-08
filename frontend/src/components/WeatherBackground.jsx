@@ -42,8 +42,92 @@ const SCENES = {
   },
 }
 
+/**
+ * Sky palettes — [zenith, middle, horizon] for each condition.
+ *
+ * Real skies are darkest overhead and lighten toward the horizon (more
+ * atmosphere to look through), which is what makes a three-stop gradient read as
+ * air rather than as a flat wash. The `dusk` column is blended in as the sun
+ * drops, so golden hour arrives gradually instead of switching on.
+ */
+const SKY = {
+  clear: {
+    day: ['#12457F', '#2A72BE', '#67A9DC'],
+    dusk: ['#1B3668', '#D97B45', '#F7CB84'],
+    night: ['#050A18', '#0E1A36', '#1D2E54'],
+  },
+  'mainly-clear': {
+    day: ['#164476', '#2E6DAF', '#6099CB'],
+    dusk: ['#22406F', '#C77448', '#EDC186'],
+    night: ['#060B1A', '#101C38', '#1F3057'],
+  },
+  cloudy: {
+    day: ['#333F4E', '#4B5A6B', '#6E7C8C'],
+    dusk: ['#3E4A60', '#8A7285', '#BB9C96'],
+    night: ['#0A0F1A', '#151D2C', '#242E40'],
+  },
+  fog: {
+    day: ['#4A525C', '#646C76', '#878E96'],
+    dusk: ['#525A66', '#8A8189', '#B2A8A6'],
+    night: ['#0D1118', '#181D26', '#272D37'],
+  },
+  drizzle: {
+    day: ['#2C4157', '#3F5670', '#63788F'],
+    dusk: ['#2E4157', '#7A6274', '#A68C94'],
+    night: ['#070C16', '#111A28', '#1E2937'],
+  },
+  rain: {
+    day: ['#233242', '#374B60', '#586C82'],
+    dusk: ['#28384C', '#6C5768', '#96828C'],
+    night: ['#060A12', '#0F1723', '#1B2532'],
+  },
+  showers: {
+    day: ['#253647', '#3A5066', '#5C7189'],
+    dusk: ['#2A3B50', '#705A6C', '#998590'],
+    night: ['#070B14', '#101825', '#1C2634'],
+  },
+  freezing: {
+    day: ['#465868', '#647889', '#8FA1B1'],
+    dusk: ['#4C5E74', '#9B8393', '#C9AFAC'],
+    night: ['#0B111C', '#18202F', '#293345'],
+  },
+  snow: {
+    day: ['#4A5A6E', '#6A7C92', '#96A7B8'],
+    dusk: ['#4F6178', '#A08797', '#CDB3B0'],
+    night: ['#0C121D', '#192131', '#2A3446'],
+  },
+  thunderstorm: {
+    day: ['#1B172E', '#2C2544', '#413660'],
+    dusk: ['#1C1830', '#4A3450', '#6D4C65'],
+    night: ['#04030A', '#0E0B1C', '#1B162F'],
+  },
+}
+
+/** Below this sun altitude the sky starts blending toward its dusk palette. */
+const GOLDEN_HOUR_ALTITUDE = 0.35
+
 const rand = (min, max) => min + Math.random() * (max - min)
 const TAU = Math.PI * 2
+
+/** "#rrggbb" -> [r, g, b] */
+function hexToRgb(hex) {
+  const value = parseInt(hex.slice(1), 16)
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255]
+}
+
+/** Blend two hex colours; t = 0 gives `a`, t = 1 gives `b`. */
+function mixHex(a, b, t) {
+  const [r1, g1, b1] = hexToRgb(a)
+  const [r2, g2, b2] = hexToRgb(b)
+  const k = Math.max(0, Math.min(1, t))
+  return [
+    Math.round(r1 + (r2 - r1) * k),
+    Math.round(g1 + (g2 - g1) * k),
+    Math.round(b1 + (b2 - b1) * k),
+  ]
+}
+
+const rgb = ([r, g, b], alpha = 1) => `rgba(${r}, ${g}, ${b}, ${alpha})`
 
 export default function WeatherBackground({
   group = 'cloudy',
@@ -95,6 +179,7 @@ export default function WeatherBackground({
     let cloudSprite = null
     let raySprite = null
     let glowCache = null
+    let skyCache = null
 
     const CLOUD_PUFFS = [
       { dx: 0, dy: 0, r: 92 },
@@ -160,21 +245,32 @@ export default function WeatherBackground({
       off.width = w
       off.height = h
       const octx = off.getContext('2d')
-      const tint = isDay ? '232, 240, 255' : '147, 166, 200'
-      // Each puff is a radial gradient rather than a flat disc, so the cloud has
-      // a soft translucent edge instead of a hard outline.
-      for (const p of CLOUD_PUFFS) {
-        const cx = w / 2 + p.dx * maxScale
-        const cy = h / 2 + p.dy * maxScale
-        const r = p.r * maxScale
-        const grad = octx.createRadialGradient(cx, cy, r * 0.15, cx, cy, r)
-        grad.addColorStop(0, `rgba(${tint}, 0.85)`)
-        grad.addColorStop(0.55, `rgba(${tint}, 0.42)`)
-        grad.addColorStop(1, `rgba(${tint}, 0)`)
-        octx.fillStyle = grad
-        octx.beginPath()
-        octx.arc(cx, cy, r, 0, TAU)
-        octx.fill()
+
+      const lit = isDay ? '248, 251, 255' : '150, 168, 200'
+      const shade = isDay ? '150, 168, 196' : '58, 70, 96'
+
+      // Real clouds are lit from above and heavy underneath. Painting a darker
+      // base first and the bright top over it gives that vertical shading, which
+      // is most of what separates a cloud from a grey blob.
+      const passes = [
+        { colour: shade, dy: 20, alphaIn: 0.55, alphaMid: 0.3, scale: 1 },
+        { colour: lit, dy: -8, alphaIn: 0.9, alphaMid: 0.46, scale: 0.94 },
+      ]
+
+      for (const pass of passes) {
+        for (const p of CLOUD_PUFFS) {
+          const cx = w / 2 + p.dx * maxScale * pass.scale
+          const cy = h / 2 + (p.dy + pass.dy) * maxScale * pass.scale
+          const r = p.r * maxScale * pass.scale
+          const grad = octx.createRadialGradient(cx, cy, r * 0.15, cx, cy, r)
+          grad.addColorStop(0, `rgba(${pass.colour}, ${pass.alphaIn})`)
+          grad.addColorStop(0.55, `rgba(${pass.colour}, ${pass.alphaMid})`)
+          grad.addColorStop(1, `rgba(${pass.colour}, 0)`)
+          octx.fillStyle = grad
+          octx.beginPath()
+          octx.arc(cx, cy, r, 0, TAU)
+          octx.fill()
+        }
       }
       cloudSprite = { canvas: off, w, h, scale: maxScale }
     }
@@ -447,6 +543,40 @@ export default function WeatherBackground({
     }
 
     /**
+     * The sky itself: a three-stop vertical gradient that lightens toward the
+     * horizon, blended toward the dusk palette as the sun drops so golden hour
+     * arrives gradually. Cached per altitude step — recomputing a gradient on
+     * every frame would be wasted work for a colour that barely moves.
+     */
+    function drawSky() {
+      const palette = SKY[group] ?? SKY.cloudy
+      const step = Math.round(sky.altitude * 20) / 20
+      const key = `${isDay ? 'd' : 'n'}:${step}:${width}x${height}`
+
+      if (!skyCache || skyCache.key !== key) {
+        let stops
+        if (!isDay) {
+          stops = palette.night.map((c) => hexToRgb(c))
+        } else if (sky.altitude < GOLDEN_HOUR_ALTITUDE) {
+          // 0 at the horizon (full dusk) -> 1 at the threshold (full day).
+          const t = sky.altitude / GOLDEN_HOUR_ALTITUDE
+          stops = palette.dusk.map((c, i) => mixHex(c, palette.day[i], t))
+        } else {
+          stops = palette.day.map((c) => hexToRgb(c))
+        }
+
+        const grad = ctx.createLinearGradient(0, 0, 0, height)
+        grad.addColorStop(0, rgb(stops[0]))
+        grad.addColorStop(0.52, rgb(stops[1]))
+        grad.addColorStop(1, rgb(stops[2]))
+        skyCache = { key, grad }
+      }
+
+      ctx.fillStyle = skyCache.grad
+      ctx.fillRect(0, 0, width, height)
+    }
+
+    /**
      * Shared sun/moon placement: swept horizontally by time of day, held inside
      * the sky band the layout keeps clear between the header and the search bar.
      */
@@ -561,7 +691,10 @@ export default function WeatherBackground({
     }
 
     function draw() {
-      ctx.clearRect(0, 0, width, height)
+      // The sky is painted here rather than in CSS so it can respond
+      // continuously to the sun's height — dawn, midday and dusk are one smooth
+      // transition instead of three fixed themes.
+      drawSky()
 
       // ---- stars ----
       for (const s of starField) {
@@ -600,7 +733,9 @@ export default function WeatherBackground({
           ctx.globalAlpha = c.alpha
           const ratio = c.scale / cloudSprite.scale
           const w = cloudSprite.w * ratio
-          const h = cloudSprite.h * ratio
+          // Clouds are far wider than they are tall; squashing the sprite
+          // vertically is what stops them reading as floating cotton balls.
+          const h = cloudSprite.h * ratio * 0.62
           ctx.drawImage(cloudSprite.canvas, c.x - w / 2, c.y - h / 2, w, h)
         }
         ctx.globalAlpha = 1
@@ -731,6 +866,7 @@ export default function WeatherBackground({
     }
   }, [
     scene,
+    group,
     isDay,
     windBucket,
     precipBucket,
