@@ -78,6 +78,26 @@ export function formatPercent(value) {
   return value == null ? EM_DASH : `${Math.round(value)}%`
 }
 
+/** Metres -> km or miles, with sensible precision at short distances. */
+export function formatVisibility(metres, system) {
+  if (metres == null) return EM_DASH
+  if (system === IMPERIAL) {
+    const miles = metres / 1609.344
+    return `${miles < 10 ? miles.toFixed(1) : Math.round(miles)} mi`
+  }
+  const km = metres / 1000
+  return `${km < 10 ? km.toFixed(1) : Math.round(km)} km`
+}
+
+/** Seconds -> "13h 42m", for the daylight-duration stat. */
+export function formatDuration(seconds) {
+  if (seconds == null) return EM_DASH
+  const total = Math.round(seconds / 60)
+  const hours = Math.floor(total / 60)
+  const minutes = total % 60
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`
+}
+
 /** 0–360° -> a 16-point compass abbreviation. */
 export function windDirection(degrees) {
   if (degrees == null) return ''

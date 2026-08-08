@@ -100,6 +100,48 @@ export function formatObservedAt(isoTime, timeZone) {
   return `${stamp}${zone}`
 }
 
+/**
+ * The location's *live* wall clock, e.g. "14:32:07".
+ *
+ * Unlike the formatters above this takes a real instant, so passing the IANA
+ * timeZone to Intl is correct here — there's no naive-string double-shift risk.
+ */
+export function formatZonedClock(date, timeZone) {
+  const options = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      ...options,
+      ...(timeZone && timeZone !== 'auto' ? { timeZone } : {}),
+    }).format(date)
+  } catch {
+    return new Intl.DateTimeFormat(undefined, options).format(date)
+  }
+}
+
+/** The location's day name, for the live-clock caption ("Thursday"). */
+export function formatZonedWeekday(date, timeZone) {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: 'long',
+      ...(timeZone && timeZone !== 'auto' ? { timeZone } : {}),
+    }).format(date)
+  } catch {
+    return new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(date)
+  }
+}
+
+/** "just now" / "45s ago" / "3m ago" — how stale the data on screen is. */
+export function formatAge(milliseconds) {
+  if (milliseconds == null) return ''
+  const seconds = Math.floor(milliseconds / 1000)
+  if (seconds < 5) return 'just now'
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${minutes % 60}m ago`
+}
+
 /** Flag emoji from an ISO-3166 alpha-2 country code, e.g. "GB" -> 🇬🇧. */
 export function countryFlag(countryCode) {
   if (!countryCode || countryCode.length !== 2) return ''

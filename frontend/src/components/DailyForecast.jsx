@@ -1,5 +1,5 @@
-import { formatPercent, formatTemp } from '../utils/units'
-import { formatDayMonth, formatWeekday, weatherIcon } from '../utils/weather'
+import { formatDuration, formatPercent, formatTemp, formatWind } from '../utils/units'
+import { formatClock, formatDayMonth, formatWeekday, weatherIcon } from '../utils/weather'
 
 /**
  * 7-day outlook. Each row carries its own min/max numbers, which is also what
@@ -29,13 +29,25 @@ export default function DailyForecast({ daily, system }) {
           const width = ((day.temp_max - day.temp_min) / span) * 100
 
           return (
-            <li className="daily__row" key={day.date}>
+            <li
+              className="daily__row"
+              key={day.date}
+              title={[
+                day.description,
+                `Sunrise ${formatClock(day.sunrise)} · Sunset ${formatClock(day.sunset)}`,
+                `Daylight ${formatDuration(day.daylight_duration)}`,
+                `Max wind ${formatWind(day.wind_speed_max, system)}`,
+                day.uv_index_max == null ? null : `UV ${Math.round(day.uv_index_max * 10) / 10}`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            >
               <div className="daily__day">
                 <span className="daily__weekday">{formatWeekday(day.date, { isToday: index === 0 })}</span>
                 <span className="daily__date">{formatDayMonth(day.date)}</span>
               </div>
 
-              <span className="daily__icon" aria-hidden="true" title={day.description}>
+              <span className="daily__icon" aria-hidden="true">
                 {weatherIcon(day.group, true)}
               </span>
 

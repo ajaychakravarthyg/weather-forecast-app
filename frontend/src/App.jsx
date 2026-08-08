@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ApiError, fetchWeatherByCity, fetchWeatherByCoords } from './api'
 import CurrentWeather from './components/CurrentWeather'
@@ -10,11 +10,17 @@ import SearchHistory from './components/SearchHistory'
 import Spinner from './components/Spinner'
 import TempChart from './components/TempChart'
 import UnitToggle from './components/UnitToggle'
+import WeatherBackground from './components/WeatherBackground'
+import useNow from './hooks/useNow'
+import { moonPhase } from './utils/celestial'
 import { METRIC } from './utils/units'
+import { formatAge } from './utils/weather'
 
 /** Shown on first paint so the dashboard is never empty. */
 const DEFAULT_CITY = 'London'
 const HISTORY_LIMIT = 6
+/** Re-fetch this often so the dashboard stays live without a manual refresh. */
+const AUTO_REFRESH_MS = 10 * 60 * 1000
 
 /** Stable identity for a place, used for history de-duplication. */
 const locationKey = (lat, lon) => `${Number(lat).toFixed(3)},${Number(lon).toFixed(3)}`
@@ -26,11 +32,12 @@ export default function App() {
   const [geolocating, setGeolocating] = useState(false)
   const [error, setError] = useState(null)
   const [history, setHistory] = useState([])
+  const [fetchedAt, setFetchedAt] = useState(null)
 
-  // Cancels an in-flight request when a newer one starts, so a slow response
-  // can never overwrite a fresher one.
+  // Ticks every second: drives the location's live clock and the "updated" label.
+  const now = useNow(1000)
+
   const requestRef = useRef(null)
-  // What to re-run when the user clicks "Try again".
   const lastRequestRef = useRef(null)
 
   const runRequest = useCallback(async (fetcher, descriptor) => {
@@ -47,9 +54,8 @@ export default function App() {
       if (controller.signal.aborted) return
 
       setData(result)
+      setFetchedAt(Date.now())
 
-      // Record the resolved location (not the raw query) so history entries
-      // always carry usable coordinates.
       const { location } = result
       setHistory((previous) => {
         const entry = {
@@ -89,7 +95,6 @@ export default function App() {
     [runRequest],
   )
 
-  /** Browser geolocation -> forecast for wherever the user is. */
   const useMyLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setError({
@@ -105,11 +110,11 @@ export default function App() {
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         setGeolocating(false)
-        // No label — the backend reverse-geocodes to a real place name.
-        runRequest(
-          (signal) => fetchWeatherByCoords(coords.latitude, coords.longitude, { signal }),
-          { type: 'geo', latitude: coords.latitude, longitude: coords.longitude },
-        )
+        runRequest((signal) => fetchWeatherByCoords(coords.latitude, coords.longitude, { signal }), {
+          type: 'geo',
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        })
       },
       (geoError) => {
         setGeolocating(false)
@@ -127,8 +132,8 @@ export default function App() {
     )
   }, [runRequest])
 
-  /** Re-run whatever failed. */
-  const retry = useCallback(() => {
+  /** Re-run the last request — used by both the retry button and auto-refresh. */
+  const refresh = useCallback(() => {
     const last = lastRequestRef.current
     if (!last) {
       searchCity(DEFAULT_CITY)
@@ -145,22 +150,46 @@ export default function App() {
     return () => requestRef.current?.abort()
   }, [searchCity])
 
-  // Tint the page background to match the current conditions.
-  const group = data?.current?.group ?? 'cloudy'
-  const daylight = data?.current?.is_day === false ? 'night' : 'day'
+  // Keep the data fresh on a timer. Skipped while the tab is hidden so a
+  // backgrounded dashboard isn't quietly polling the API all day.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!document.hidden) refresh()
+    }, AUTO_REFRESH_MS)
+    return () => clearInterval(id)
+  }, [refresh])
 
-  // While refetching with data already on screen, hold the previous render at
-  // reduced opacity instead of flashing a skeleton.
+  const current = data?.current
+  const group = current?.group ?? 'cloudy'
+  const isDay = current?.is_day !== false
+  // The moon phase shifts imperceptibly minute to minute, so recompute hourly
+  // rather than on every one-second tick of `now`.
+  const moonHour = Math.floor(now.getTime() / 3_600_000)
+  const moon = useMemo(() => moonPhase(new Date(moonHour * 3_600_000)), [moonHour])
+
   const refreshing = loading && data !== null
   const showSpinner = loading && data === null
   const activeKey = data ? locationKey(data.location.latitude, data.location.longitude) : null
 
   return (
-    <div className="app" data-weather={group} data-daylight={daylight}>
+    <div className="app" data-weather={group} data-daylight={isDay ? 'day' : 'night'}>
+      {/* Gradient sky, then the animated canvas scene on top of it. */}
       <div className="app__backdrop" aria-hidden="true">
         <span className="app__glow app__glow--one" />
         <span className="app__glow app__glow--two" />
       </div>
+      <WeatherBackground
+        group={group}
+        isDay={isDay}
+        windSpeed={current?.wind_speed ?? 0}
+        precipitation={current?.precipitation ?? 0}
+        cloudCover={current?.cloud_cover ?? 0}
+        sunrise={current?.sunrise ?? null}
+        sunset={current?.sunset ?? null}
+        timeZone={data?.location?.timezone ?? null}
+      />
+      {/* A translucent scrim keeps text legible over the busiest scenes. */}
+      <div className="app__scrim" aria-hidden="true" />
 
       {refreshing && <div className="topprogress" role="presentation" />}
 
@@ -172,7 +201,19 @@ export default function App() {
             </span>
             <span className="brand__text">Weather Dashboard</span>
           </p>
-          <UnitToggle system={system} onChange={setSystem} />
+
+          <div className="topbar__actions">
+            {/* Live condition pill — reflects exactly what the scene is showing. */}
+            {current && (
+              <span className="conditionpill" title={`${current.description} · ${moon.name}`}>
+                <span aria-hidden="true">{isDay ? '☀️' : moon.emoji}</span>
+                <span className="conditionpill__text">
+                  {isDay ? current.description : moon.name}
+                </span>
+              </span>
+            )}
+            <UnitToggle system={system} onChange={setSystem} />
+          </div>
         </div>
       </header>
 
@@ -185,21 +226,43 @@ export default function App() {
           busy={loading}
         />
 
-        <SearchHistory
-          history={history}
-          activeKey={activeKey}
-          onSelect={selectLocation}
-          onClear={() => setHistory([])}
-          disabled={loading}
-        />
+        <div className="toolbar">
+          <SearchHistory
+            history={history}
+            activeKey={activeKey}
+            onSelect={selectLocation}
+            onClear={() => setHistory([])}
+            disabled={loading}
+          />
 
-        {error && <ErrorMessage kind={error.kind} message={error.message} onRetry={retry} />}
+          {/* How stale the numbers are, plus a manual refresh. */}
+          {fetchedAt && (
+            <div className="freshness">
+              <span className={`freshness__dot${refreshing ? ' is-busy' : ''}`} aria-hidden="true" />
+              <span className="freshness__text">Updated {formatAge(now.getTime() - fetchedAt)}</span>
+              <button
+                type="button"
+                className="btn btn--icon"
+                onClick={refresh}
+                disabled={loading}
+                title="Refresh now"
+                aria-label="Refresh weather data"
+              >
+                <span className={refreshing ? 'spin' : undefined} aria-hidden="true">
+                  ⟳
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {error && <ErrorMessage kind={error.kind} message={error.message} onRetry={refresh} />}
 
         {showSpinner && <Spinner />}
 
         {data && (
           <div className={`content${refreshing ? ' is-refreshing' : ''}`}>
-            <CurrentWeather location={data.location} current={data.current} system={system} />
+            <CurrentWeather location={data.location} current={data.current} system={system} now={now} />
             <TempChart daily={data.daily} hourly={data.hourly} system={system} />
             <HourlyForecast hourly={data.hourly} system={system} />
             <DailyForecast daily={data.daily} system={system} />

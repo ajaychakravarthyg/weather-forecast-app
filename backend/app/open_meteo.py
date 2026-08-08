@@ -51,6 +51,11 @@ HOURLY_FIELDS = [
     "temperature_2m",
     "apparent_temperature",
     "precipitation_probability",
+    "relative_humidity_2m",
+    "wind_speed_10m",
+    # Visibility is hourly-only in Open-Meteo — the "current" block has no
+    # equivalent, so we lift the current hour's value into it ourselves.
+    "visibility",
     "weather_code",
     "is_day",
 ]
@@ -61,6 +66,7 @@ DAILY_FIELDS = [
     "temperature_2m_min",
     "sunrise",
     "sunset",
+    "daylight_duration",
     "precipitation_sum",
     "precipitation_probability_max",
     "wind_speed_10m_max",
@@ -316,6 +322,7 @@ def build_weather_response(
                 uv_index_max=_at(daily_raw.get("uv_index_max"), index),
                 sunrise=_at(daily_raw.get("sunrise"), index),
                 sunset=_at(daily_raw.get("sunset"), index),
+                daylight_duration=_at(daily_raw.get("daylight_duration"), index),
             )
         )
 
@@ -332,6 +339,9 @@ def build_weather_response(
                 temperature=_at(hourly_raw.get("temperature_2m"), index),
                 apparent_temperature=_at(hourly_raw.get("apparent_temperature"), index),
                 precipitation_probability=_at(hourly_raw.get("precipitation_probability"), index),
+                humidity=_at(hourly_raw.get("relative_humidity_2m"), index),
+                wind_speed=_at(hourly_raw.get("wind_speed_10m"), index),
+                visibility=_at(hourly_raw.get("visibility"), index),
                 weather_code=code,
                 description=info["description"],
                 group=info["group"],
@@ -354,6 +364,9 @@ def build_weather_response(
         wind_gusts=current_raw.get("wind_gusts_10m"),
         precipitation=current_raw.get("precipitation"),
         cloud_cover=current_raw.get("cloud_cover"),
+        # Visibility has no "current" equivalent upstream — borrow the value from
+        # the hourly slot that covers right now.
+        visibility=_at(hourly_raw.get("visibility"), start),
         is_day=bool(current_raw.get("is_day", 1)),
         weather_code=code,
         description=info["description"],
@@ -363,6 +376,7 @@ def build_weather_response(
         uv_index_max=today.uv_index_max if today else None,
         temp_max=today.temp_max if today else None,
         temp_min=today.temp_min if today else None,
+        daylight_duration=today.daylight_duration if today else None,
     )
 
     return WeatherResponse(location=location, current=current, daily=daily, hourly=hourly)

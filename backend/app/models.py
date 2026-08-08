@@ -34,6 +34,7 @@ class CurrentWeather(BaseModel):
     wind_gusts: float | None = None
     precipitation: float | None = None
     cloud_cover: int | None = None
+    visibility: float | None = Field(default=None, description="Metres")
     is_day: bool = True
     weather_code: int | None = None
     description: str
@@ -44,6 +45,7 @@ class CurrentWeather(BaseModel):
     uv_index_max: float | None = None
     temp_max: float | None = None
     temp_min: float | None = None
+    daylight_duration: float | None = Field(default=None, description="Seconds")
 
 
 class DailyEntry(BaseModel):
@@ -59,6 +61,7 @@ class DailyEntry(BaseModel):
     uv_index_max: float | None = None
     sunrise: str | None = None
     sunset: str | None = None
+    daylight_duration: float | None = Field(default=None, description="Seconds")
 
 
 class HourlyEntry(BaseModel):
@@ -66,6 +69,9 @@ class HourlyEntry(BaseModel):
     temperature: float | None = None
     apparent_temperature: float | None = None
     precipitation_probability: int | None = None
+    humidity: int | None = None
+    wind_speed: float | None = None
+    visibility: float | None = Field(default=None, description="Metres")
     weather_code: int | None = None
     description: str
     group: str
