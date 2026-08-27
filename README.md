@@ -28,6 +28,7 @@ the React components clean.
 | 📈 | **Local climate insights** — how the last 30 days compare with the same stretch last year, where this month sits in the local rainfall year, and today against the seasonal normal. Derived from several years of ERA5 history for those exact coordinates |
 | 💾 | **Picks up where you left off** — the last location, recent cities and unit choice persist across reloads. On a first visit it asks for your device location and falls back to a default city if you decline |
 | ⏳ | **Loading & error states** — a spinner on first load, a top progress bar on refetch (the previous data stays on screen rather than flashing a skeleton), and specific, friendly messages for "city not found", network failures and a cold-starting backend |
+| 🏞️ | **Photographic skies (optional)** — drop images into `frontend/public/sky/` and they become the background, resolved per condition and time of day with a fallback chain so two files or twelve both work. A darken/desaturate/grade treatment makes unrelated photos read as one system and keeps text legible. With the folder empty it falls back to the procedural canvas sky. See [`frontend/public/sky/README.md`](frontend/public/sky/README.md). |
 | 🎨 | **Polish** — the background tint responds to the current weather and to day/night, glassmorphism cards, staggered entry animations, full keyboard support in the search dropdown, and `prefers-reduced-motion` respected |
 
 ### A note on the chart

@@ -2,8 +2,9 @@
    Weather Dashboard — styles
 
    Layer order, back to front:
-     .app__backdrop   solid fallback colour          (z -3)
-     .weather-canvas  sky gradient + weather scene   (z -2)
+     .app__backdrop   solid fallback colour          (z -4)
+     .skyphoto        optional photographic sky      (z -3)
+     .weather-canvas  sky gradient/grade + weather   (z -2)
      .app__scrim      vignette                       (z -1)
      .app__grain      film grain                     (z -1)
      content                                        (z  0+)
@@ -132,8 +133,48 @@ body {
 .app__backdrop {
   position: fixed;
   inset: 0;
-  z-index: -3;
+  z-index: -4;
   background: var(--page-base);
+}
+
+/* --- layer 1b: photographic sky (optional) -------------------------------- *
+ * Present only when public/sky/ has a matching image; see utils/skyPhoto.js.
+ * The treatment here is what turns a set of unrelated photographs into one
+ * coherent look: everything is darkened and partly desaturated, and the canvas
+ * then grades the condition palette over the top. Without it, twelve stock
+ * photos would each bring their own colour cast and white text would be
+ * unreadable over the bright ones. */
+.skyphoto {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  overflow: hidden;
+}
+
+.skyphoto__frame {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  /* Slow drift keeps a still photograph from feeling like a dead backdrop. */
+  animation: sky-drift 48s ease-in-out infinite alternate;
+  filter: brightness(0.62) saturate(0.82) contrast(1.04);
+  opacity: 0;
+  transition: opacity 900ms var(--ease);
+}
+
+.skyphoto__frame.is-current {
+  opacity: 1;
+}
+
+@keyframes sky-drift {
+  from {
+    transform: scale(1.06) translate3d(-1%, -0.6%, 0);
+  }
+  to {
+    transform: scale(1.12) translate3d(1%, 0.6%, 0);
+  }
 }
 
 /* --- layer 2: animated weather scene ------------------------------------- */

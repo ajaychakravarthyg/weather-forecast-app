@@ -87,3 +87,11 @@ build/
 ehthumbs.db
 Thumbs.db
 desktop.ini
+
+# ------------------------------------------------------- agent tooling -------
+# Skills installed locally by `npx skills add` / claude-code-templates. These are
+# editor/agent tooling rather than application code, and .claude/skills contains
+# absolute-path symlinks that would not survive a clone.
+.agents/
+.claude/skills/
+skills-lock.json

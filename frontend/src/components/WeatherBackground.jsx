@@ -103,6 +103,9 @@ const SKY = {
   },
 }
 
+/** How strongly the condition gradient grades a photograph underneath it. */
+const PHOTO_TINT_ALPHA = 0.42
+
 /** Below this sun altitude the sky starts blending toward its dusk palette. */
 const GOLDEN_HOUR_ALTITUDE = 0.35
 
@@ -138,6 +141,9 @@ export default function WeatherBackground({
   sunrise = null,
   sunset = null,
   timeZone = null,
+  // When a photograph is showing behind us, the gradient becomes a tint over it
+  // rather than the sky itself.
+  overPhoto = false,
 }) {
   const canvasRef = useRef(null)
 
@@ -572,8 +578,13 @@ export default function WeatherBackground({
         skyCache = { key, grad }
       }
 
+      // Over a photo this same gradient becomes a translucent grade: it unifies
+      // unrelated photographs into one palette and keeps text legible, while
+      // still letting the photograph read through.
+      ctx.globalAlpha = overPhoto ? PHOTO_TINT_ALPHA : 1
       ctx.fillStyle = skyCache.grad
       ctx.fillRect(0, 0, width, height)
+      ctx.globalAlpha = 1
     }
 
     /**
@@ -877,6 +888,7 @@ export default function WeatherBackground({
     sunrise,
     sunset,
     timeZone,
+    overPhoto,
   ])
 
   return <canvas ref={canvasRef} className="weather-canvas" aria-hidden="true" />

@@ -8,6 +8,7 @@ import HourlyForecast from './components/HourlyForecast'
 import Insights from './components/Insights'
 import SearchBar from './components/SearchBar'
 import SearchHistory from './components/SearchHistory'
+import SkyPhoto from './components/SkyPhoto'
 import Spinner from './components/Spinner'
 import TempChart from './components/TempChart'
 import UnitToggle from './components/UnitToggle'
@@ -43,6 +44,9 @@ export default function App() {
   const [fetchedAt, setFetchedAt] = useState(null)
   const [facts, setFacts] = useState([])
   const [factsLoading, setFactsLoading] = useState(false)
+  // True once a background photograph has been found for these conditions; the
+  // canvas then grades over it instead of painting its own sky.
+  const [hasSkyPhoto, setHasSkyPhoto] = useState(false)
 
   // Ticks every second: drives the location's live clock and the "updated" label.
   const now = useNow(1000)
@@ -262,6 +266,8 @@ export default function App() {
     <div className="app" data-weather={group} data-daylight={isDay ? 'day' : 'night'}>
       {/* Base colour behind everything, in case the canvas can't initialise. */}
       <div className="app__backdrop" aria-hidden="true" />
+      {/* Optional photographic sky — renders nothing when public/sky/ is empty. */}
+      <SkyPhoto group={group} isDay={isDay} onResolved={setHasSkyPhoto} />
       <WeatherBackground
         group={group}
         isDay={isDay}
@@ -271,6 +277,7 @@ export default function App() {
         sunrise={current?.sunrise ?? null}
         sunset={current?.sunset ?? null}
         timeZone={data?.location?.timezone ?? null}
+        overPhoto={hasSkyPhoto}
       />
       {/* Vignette for depth, then a fine grain pass. Real skies are never
           perfectly smooth — a little noise is what stops a gradient reading
