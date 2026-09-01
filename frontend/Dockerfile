@@ -45,6 +45,12 @@ RUN npm run build
 # below can never drift apart.
 FROM nginx:1.27-alpine AS runtime
 
+# Patch the OS packages the base image ships. Base images lag their distro by
+# weeks, and every CRITICAL/HIGH CVE in this image came from stale Alpine
+# packages (libssl3, libexpat, libxml2, libpng, musl, zlib...), not from our
+# code. Upgrading here is what keeps the CVE gate in CI passable.
+RUN apk upgrade --no-cache
+
 # Substituted into the config at container start (see nginx.conf.template).
 ENV BACKEND_ORIGIN=http://backend:8000
 # Restrict envsubst to this one variable so nginx's own $host/$uri are untouched.

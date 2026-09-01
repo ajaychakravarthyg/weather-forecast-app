@@ -276,49 +276,106 @@ docker build -t weather-frontend \
 
 ---
 
-## 🔁 CI
+## 🔁 CI/CD
 
-`.github/workflows/ci.yml` runs on every push to `main` and every pull request.
+`.github/workflows/ci.yml` runs on every push to `main`, every pull request, and
+weekly on a schedule.
 
 ```
 build-frontend ─┐
-                ├─► images (frontend + backend, in parallel)
+                ├─► image  (build → scan for CVEs → push only if clean)
 check-backend  ─┘
+audit-deps ─────── independent, runs alongside
 ```
 
-1. **build-frontend** — `npm ci` (lockfile-exact) then `npm run build`, and uploads
-   `frontend/dist` as a workflow artifact.
-2. **check-backend** — installs the requirements and imports the app, asserting the
-   `/api` routes register. Ten seconds, and it stops an image that can't boot.
-3. **images** — builds both containers on a matrix. The frontend image downloads the
-   artifact and uses the Dockerfile's **`prebuilt`** target, which just copies `dist/`
-   into nginx rather than running npm a second time. **The bundle that was built is
-   byte-for-byte the bundle that ships** — no chance of the image containing something
-   the pipeline never produced.
+### The pipeline
 
-Images publish to GitHub Container Registry, free for public repos and authenticated
-with the built-in `GITHUB_TOKEN` — no secrets to configure:
+| Job | What it does |
+|---|---|
+| **build-frontend** | `npm ci` then `npm run build`, uploads `frontend/dist` as an artifact |
+| **check-backend** | installs requirements, imports the app and asserts all five `/api` routes register |
+| **audit-deps** | `npm audit` on the production tree (dev findings advisory only) and `pip-audit` on the installed environment |
+| **image** | matrix over frontend/backend: build → **CVE scan** → SBOM → push if the gate passed |
+
+### Two properties worth knowing
+
+**The artifact is built once.** `npm run build` runs in its own job; the image
+build downloads that artifact and uses the Dockerfile's `prebuilt` target, which
+copies `dist/` straight into nginx rather than running npm again. The bundle that
+was built is the bundle that ships.
+
+**The image that was scanned is the image that ships.** The build step uses
+`load: true` with `push: false`, so nothing reaches the registry before the scan.
+After the gate passes, the *same local image* is tagged and pushed — it is never
+rebuilt, so the bytes that were checked and the bytes that ship cannot differ.
+
+### The CVE gate
+
+Trivy (pinned to `aquasec/trivy:0.74.0` — an unpinned scanner makes builds fail
+on someone else's release day) scans each image and the build **fails on
+CRITICAL or HIGH vulnerabilities that have a fix available**.
+
+Results go three places: a readable table in the job summary, SARIF uploaded to
+the repository's **Security tab**, and a CycloneDX **SBOM** kept as an artifact
+for 30 days.
+
+#### Why `--ignore-unfixed`
+
+Because the alternative is a gate nobody can ever pass. Scanning the images
+before this work found:
+
+| | CRITICAL | HIGH | Fixable |
+|---|---|---|---|
+| backend | 3 | 16 | 3 |
+| frontend | 1 | 34 | 35 |
+
+The unfixable ones are base-image CVEs with no patched version published — there
+is no action a developer can take, so blocking on them would mean a permanently
+red pipeline and a gate everyone learns to ignore. Gating on *fixable* findings
+keeps every failure actionable.
+
+That distinction was worth making, because the fixable ones were all real:
+
+- **backend** — the FastAPI pin dragged in `starlette 0.41.3`, carrying three HIGH
+  CVEs. Fixed by moving to FastAPI 0.141.1 / starlette 1.6.0.
+- **frontend** — all 35 came from stale Alpine packages in the base image
+  (`libssl3`, `libexpat`, `libxml2`, `libpng`, `musl`, `zlib`…), none from
+  application code. Fixed with `apk upgrade --no-cache` in the runtime stage;
+  the backend does the equivalent with `apt-get upgrade`.
+
+Both images now report **zero fixable CRITICAL/HIGH**, and the gate was verified
+in both directions — it passes on the patched images and exits non-zero on the
+unpatched `nginx:1.27-alpine` base.
+
+### Registry
+
+Images publish to GitHub Container Registry, authenticated with the built-in
+`GITHUB_TOKEN`, so there are no secrets to configure:
 
 ```
 ghcr.io/<you>/weather-forecast-app-frontend:latest
 ghcr.io/<you>/weather-forecast-app-backend:latest
 ```
 
-Tagged `latest` on `main`, plus a short SHA tag on every build, the branch name, and
-semver tags for `v*` releases. Pull requests **build but do not push** — a fork's token
-can't write packages, and unreviewed code shouldn't publish an image. Layer cache is
-kept in GitHub Actions cache, so repeat builds are quick.
+Tagged `latest` on `main`, plus short SHA, branch name, and semver tags for `v*`
+releases. Pull requests **build and scan but do not push** — a fork's token
+cannot write packages, and unreviewed code should not publish an image.
 
-To reproduce the CI image build locally:
+### Reproducing it locally
 
 ```bash
-cd frontend
-npm ci && npm run build
+# the artifact-based image build CI performs
+cd frontend && npm ci && npm run build
 docker build --target prebuilt -t weather-frontend .
+
+# the same gate CI applies
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  aquasec/trivy:0.74.0 image --scanners vuln \
+  --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 weather-frontend
 ```
 
-> The plain `docker compose up --build` path is untouched — it still uses the `prod`
-> target and builds the bundle inside the image, so you need no prerequisites.
+> The plain `docker compose up --build` path is untouched — it uses the `prod`
+> target and builds the bundle inside the image, so it needs no prerequisites.
 
 ---
 

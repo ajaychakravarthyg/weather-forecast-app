@@ -14,6 +14,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# Patch the Debian packages the base image ships, for the same reason as the
+# frontend: most image CVEs come from a stale base, not from application code.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Copy requirements alone first so the dependency layer is cached and only

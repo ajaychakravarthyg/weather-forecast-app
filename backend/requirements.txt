@@ -1,4 +1,7 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
+# Pinned exactly so CI, Docker and local dev resolve identically.
+# Bumped 2026-08: the previous FastAPI pin dragged in starlette 0.41.3, which
+# carried three HIGH CVEs (CVE-2025-62727, CVE-2026-48818, CVE-2026-54283).
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
 httpx==0.28.1
-pydantic==2.10.4
+pydantic==2.13.5
