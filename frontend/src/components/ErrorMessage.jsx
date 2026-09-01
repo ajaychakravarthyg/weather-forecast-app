@@ -1,14 +1,16 @@
+import Icon from './Icon'
+
 /**
  * Friendly error panel. The copy is chosen per error kind so "city not found"
  * reads differently from "the backend is asleep".
  */
 const PRESETS = {
-  notFound: { icon: '🔍', title: "We couldn't find that place" },
-  network: { icon: '🔌', title: 'Connection problem' },
-  server: { icon: '⚠️', title: 'The weather service hiccuped' },
-  badRequest: { icon: '✏️', title: "That search didn't look right" },
-  geolocation: { icon: '📍', title: "Couldn't get your location" },
-  unknown: { icon: '⚠️', title: 'Something went wrong' },
+  notFound: { icon: 'search', title: "We couldn't find that place" },
+  network: { icon: 'plug', title: 'Connection problem' },
+  server: { icon: 'alert', title: 'The weather service hiccuped' },
+  badRequest: { icon: 'pencil', title: "That search didn't look right" },
+  geolocation: { icon: 'pin', title: "Couldn't get your location" },
+  unknown: { icon: 'alert', title: 'Something went wrong' },
 }
 
 export default function ErrorMessage({ kind = 'unknown', message, onRetry }) {
@@ -16,9 +18,7 @@ export default function ErrorMessage({ kind = 'unknown', message, onRetry }) {
 
   return (
     <div className="errorbox" role="alert">
-      <span className="errorbox__icon" aria-hidden="true">
-        {preset.icon}
-      </span>
+      <Icon name={preset.icon} size={24} className="errorbox__icon" />
       <div className="errorbox__body">
         <h2 className="errorbox__title">{preset.title}</h2>
         <p className="errorbox__text">{message}</p>

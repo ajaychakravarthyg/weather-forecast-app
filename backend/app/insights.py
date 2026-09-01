@@ -176,7 +176,7 @@ def build_facts(climate: Climate, today_max: float | None = None) -> list[Fact]:
         facts.append(
             Fact(
                 id="temp-vs-last-year",
-                icon="🌡️",
+                icon="thermometer",
                 headline=headline,
                 detail=(
                     f"Averaged {now_temp:.1f}°C over {period}, against "
@@ -200,7 +200,7 @@ def build_facts(climate: Climate, today_max: float | None = None) -> list[Fact]:
             else:
                 headline = f"{abs(change):.0f}% {'more' if change > 0 else 'less'} rain than last year"
             detail = f"{now_rain:.0f} mm over {period}, against {was_rain:.0f} mm in {prev_end.year}."
-        facts.append(Fact(id="rain-vs-last-year", icon="🌧️", headline=headline, detail=detail))
+        facts.append(Fact(id="rain-vs-last-year", icon="droplet", headline=headline, detail=detail))
 
     # ---- where this month sits in the local rainfall year ------------------ #
     monthly = climate.monthly_rainfall()
@@ -245,7 +245,7 @@ def build_facts(climate: Climate, today_max: float | None = None) -> list[Fact]:
         facts.append(
             Fact(
                 id="season",
-                icon="🗓️",
+                icon="calendar",
                 headline=headline,
                 detail=(
                     f"{MONTHS[month - 1]} ranks {rank} of 12 for rainfall, averaging "
@@ -267,7 +267,7 @@ def build_facts(climate: Climate, today_max: float | None = None) -> list[Fact]:
         facts.append(
             Fact(
                 id="vs-normal",
-                icon="📊",
+                icon="chart",
                 headline=headline,
                 detail=(
                     f"Today peaks at {today_max:.0f}°C. The {CLIMATOLOGY_YEARS}-year average "

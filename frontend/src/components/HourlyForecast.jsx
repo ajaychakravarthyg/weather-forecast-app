@@ -1,5 +1,7 @@
 import { formatPercent, formatVisibility, formatWind, formatTemp } from '../utils/units'
-import { formatHour, weatherIcon } from '../utils/weather'
+import { formatHour } from '../utils/weather'
+import Icon from './Icon'
+import WeatherIcon from './WeatherIcon'
 
 /**
  * Next 24 hours as a horizontally scrollable strip. Like the daily list, every
@@ -32,13 +34,16 @@ export default function HourlyForecast({ hourly, system }) {
             ].join(' · ')}
           >
             <span className="hourly__time">{formatHour(hour.time, { isNow: index === 0 })}</span>
-            <span className="hourly__icon" aria-hidden="true">
-              {weatherIcon(hour.group, hour.is_day)}
-            </span>
+            <WeatherIcon group={hour.group} isDay={hour.is_day} size={30} className="hourly__icon" />
             <span className="hourly__temp">{formatTemp(hour.temperature, system)}</span>
             <span className="hourly__wind">{formatWind(hour.wind_speed, system)}</span>
             <span className="hourly__pop">
-              {hour.precipitation_probability ? `💧${formatPercent(hour.precipitation_probability)}` : ' '}
+              {hour.precipitation_probability ? (
+                <>
+                  <Icon name="droplet" size={11} />
+                  {formatPercent(hour.precipitation_probability)}
+                </>
+              ) : null}
             </span>
           </li>
         ))}

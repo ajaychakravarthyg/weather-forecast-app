@@ -23,12 +23,10 @@ const PHASE_NAMES = [
   'Waning crescent',
 ]
 
-const PHASE_EMOJI = ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘']
-
 /**
  * Moon phase for a given instant.
  *
- * @returns {{phase: number, illumination: number, name: string, emoji: string, age: number}}
+ * @returns {{phase: number, illumination: number, name: string, age: number}}
  *   phase        0 = new, 0.25 = first quarter, 0.5 = full, 0.75 = last quarter
  *   illumination fraction of the disc lit, 0..1
  *   age          days since the last new moon
@@ -49,7 +47,6 @@ export function moonPhase(date = new Date()) {
     illumination,
     age,
     name: PHASE_NAMES[index],
-    emoji: PHASE_EMOJI[index],
   }
 }
 

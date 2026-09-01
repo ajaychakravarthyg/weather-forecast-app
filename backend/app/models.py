@@ -97,6 +97,7 @@ class Fact(BaseModel):
     """One derived, human-readable observation about a location's climate."""
 
     id: str
+    # Semantic icon name, not a glyph — the frontend draws it as SVG.
     icon: str
     headline: str
     detail: str

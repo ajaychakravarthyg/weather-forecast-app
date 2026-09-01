@@ -10,13 +10,9 @@ import {
   uvBand,
   windDirection,
 } from '../utils/units'
-import {
-  countryFlag,
-  formatClock,
-  formatZonedClock,
-  formatZonedWeekday,
-  weatherIcon,
-} from '../utils/weather'
+import { formatClock, formatZonedClock, formatZonedWeekday } from '../utils/weather'
+import Icon from './Icon'
+import WeatherIcon from './WeatherIcon'
 
 /**
  * The hero card: one big current temperature plus the supporting stat grid.
@@ -26,7 +22,6 @@ import {
  * showing a frozen timestamp from whenever the data was fetched.
  */
 export default function CurrentWeather({ location, current, system, now }) {
-  const icon = weatherIcon(current.group, current.is_day)
   const tempUnit = unitLabels[system].temp.slice(1)
 
   // Every tile is driven by a live measurement; nothing here is decorative.
@@ -35,39 +30,34 @@ export default function CurrentWeather({ location, current, system, now }) {
       label: 'Feels like',
       value: formatTemp(current.apparent_temperature, system, { withUnit: true }),
       hint: feelsLikeHint(current.temperature, current.apparent_temperature),
-      icon: '🌡️',
+      icon: 'thermometer',
     },
-    { label: 'Humidity', value: formatPercent(current.humidity), icon: '💧' },
+    { label: 'Humidity', value: formatPercent(current.humidity), icon: 'droplet' },
     {
       label: 'Wind',
       value: formatWind(current.wind_speed, system),
       hint: windDirection(current.wind_direction),
-      icon: '💨',
+      icon: 'wind',
     },
-    { label: 'Gusts', value: formatWind(current.wind_gusts, system), icon: '🍃' },
-    { label: 'Pressure', value: formatPressure(current.pressure, system), icon: '🧭' },
+    { label: 'Gusts', value: formatWind(current.wind_gusts, system), icon: 'wind' },
+    { label: 'Pressure', value: formatPressure(current.pressure, system), icon: 'gauge' },
     {
       label: 'UV index',
       value: current.uv_index_max == null ? '—' : Math.round(current.uv_index_max * 10) / 10,
       hint: uvBand(current.uv_index_max),
-      icon: '🔆',
+      icon: 'uv',
     },
-    { label: 'Visibility', value: formatVisibility(current.visibility, system), icon: '👁️' },
-    { label: 'Cloud cover', value: formatPercent(current.cloud_cover), icon: '☁️' },
-    { label: 'Precipitation', value: formatPrecip(current.precipitation, system), icon: '🌧️' },
-    { label: 'Daylight', value: formatDuration(current.daylight_duration), icon: '⏳' },
+    { label: 'Visibility', value: formatVisibility(current.visibility, system), icon: 'eye' },
+    { label: 'Cloud cover', value: formatPercent(current.cloud_cover), icon: 'cloud' },
+    { label: 'Precipitation', value: formatPrecip(current.precipitation, system), icon: 'droplet' },
+    { label: 'Daylight', value: formatDuration(current.daylight_duration), icon: 'hourglass' },
   ]
 
   return (
     <section className="card hero" aria-label="Current weather">
       <div className="hero__main">
         <div className="hero__place">
-          <h1 className="hero__city">
-            <span className="hero__flag" aria-hidden="true">
-              {countryFlag(location.country_code)}
-            </span>
-            {location.name}
-          </h1>
+          <h1 className="hero__city">{location.name}</h1>
           <p className="hero__region">
             {[location.admin1, location.country].filter(Boolean).join(', ')}
           </p>
@@ -87,9 +77,12 @@ export default function CurrentWeather({ location, current, system, now }) {
         </div>
 
         <div className="hero__reading">
-          <span className="hero__icon" aria-hidden="true">
-            {icon}
-          </span>
+          <WeatherIcon
+            group={current.group}
+            isDay={current.is_day}
+            size={78}
+            className="hero__icon"
+          />
           <div className="hero__temps">
             <p className="hero__figure">
               {formatTemp(current.temperature, system)}
@@ -98,16 +91,16 @@ export default function CurrentWeather({ location, current, system, now }) {
             <p className="hero__condition">{current.description}</p>
             <p className="hero__range">
               <span title="Today's high">
-                <span aria-hidden="true">↑</span> {formatTemp(current.temp_max, system)}
+                <Icon name="arrowUp" size={14} /> {formatTemp(current.temp_max, system)}
               </span>
               <span title="Today's low">
-                <span aria-hidden="true">↓</span> {formatTemp(current.temp_min, system)}
+                <Icon name="arrowDown" size={14} /> {formatTemp(current.temp_min, system)}
               </span>
               <span title="Sunrise">
-                <span aria-hidden="true">🌅</span> {formatClock(current.sunrise)}
+                <Icon name="sunrise" size={15} /> {formatClock(current.sunrise)}
               </span>
               <span title="Sunset">
-                <span aria-hidden="true">🌇</span> {formatClock(current.sunset)}
+                <Icon name="sunset" size={15} /> {formatClock(current.sunset)}
               </span>
             </p>
           </div>
@@ -118,9 +111,7 @@ export default function CurrentWeather({ location, current, system, now }) {
         {stats.map((stat) => (
           <div className="statgrid__item" key={stat.label}>
             <dt className="statgrid__label">
-              <span className="statgrid__icon" aria-hidden="true">
-                {stat.icon}
-              </span>
+              <Icon name={stat.icon} size={15} className="statgrid__icon" />
               {stat.label}
             </dt>
             <dd className="statgrid__value">

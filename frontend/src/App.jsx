@@ -13,6 +13,8 @@ import Spinner from './components/Spinner'
 import TempChart from './components/TempChart'
 import UnitToggle from './components/UnitToggle'
 import WeatherBackground from './components/WeatherBackground'
+import Icon from './components/Icon'
+import WeatherIcon from './components/WeatherIcon'
 import useNow from './hooks/useNow'
 import { moonPhase } from './utils/celestial'
 import * as storage from './utils/storage'
@@ -290,9 +292,7 @@ export default function App() {
       <header className="topbar">
         <div className="topbar__inner">
           <p className="brand">
-            <span className="brand__mark" aria-hidden="true">
-              ⛅
-            </span>
+            <WeatherIcon group="mainly-clear" isDay size={26} className="brand__mark" />
             <span className="brand__text">Weather Dashboard</span>
           </p>
 
@@ -300,7 +300,7 @@ export default function App() {
             {/* Live condition pill — reflects exactly what the scene is showing. */}
             {current && (
               <span className="conditionpill" title={`${current.description} · ${moon.name}`}>
-                <span aria-hidden="true">{isDay ? '☀️' : moon.emoji}</span>
+                <WeatherIcon group={group} isDay={isDay} size={18} />
                 <span className="conditionpill__text">
                   {isDay ? current.description : moon.name}
                 </span>
@@ -350,9 +350,7 @@ export default function App() {
                 title="Refresh now"
                 aria-label="Refresh weather data"
               >
-                <span className={refreshing ? 'spin' : undefined} aria-hidden="true">
-                  ⟳
-                </span>
+                <Icon name="refresh" size={16} className={refreshing ? 'spin' : undefined} />
               </button>
             </div>
           )}

@@ -1,29 +1,9 @@
 /**
  * Weather-code presentation + date/time formatting.
  *
- * The backend already resolved each WMO code into a `description` and a coarse
- * `group`; this module maps the group to an emoji icon (day/night aware) and to
- * the accent colours the page background uses.
+ * Icons live in components/WeatherIcon.jsx; this module is purely the date and
+ * time formatting the cards need.
  */
-
-const ICONS = {
-  clear: { day: '☀️', night: '🌙' },
-  'mainly-clear': { day: '⛅', night: '☁️' },
-  cloudy: { day: '☁️', night: '☁️' },
-  fog: { day: '🌫️', night: '🌫️' },
-  drizzle: { day: '🌦️', night: '🌧️' },
-  rain: { day: '🌧️', night: '🌧️' },
-  freezing: { day: '🌨️', night: '🌨️' },
-  snow: { day: '❄️', night: '❄️' },
-  showers: { day: '🌦️', night: '🌧️' },
-  thunderstorm: { day: '⛈️', night: '⛈️' },
-}
-
-/** Emoji for a weather group. `isDay` picks the day or night variant. */
-export function weatherIcon(group, isDay = true) {
-  const entry = ICONS[group] ?? ICONS.cloudy
-  return isDay ? entry.day : entry.night
-}
 
 /**
  * Open-Meteo returns naive local ISO strings ("2026-08-05T14:00") that are
@@ -140,11 +120,4 @@ export function formatAge(milliseconds) {
   if (minutes < 60) return `${minutes}m ago`
   const hours = Math.floor(minutes / 60)
   return `${hours}h ${minutes % 60}m ago`
-}
-
-/** Flag emoji from an ISO-3166 alpha-2 country code, e.g. "GB" -> 🇬🇧. */
-export function countryFlag(countryCode) {
-  if (!countryCode || countryCode.length !== 2) return ''
-  const base = 0x1f1e6 - 'A'.charCodeAt(0)
-  return String.fromCodePoint(...[...countryCode.toUpperCase()].map((c) => c.charCodeAt(0) + base))
 }

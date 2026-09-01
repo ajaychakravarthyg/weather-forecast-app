@@ -100,14 +100,27 @@ dt {
   --shadow-card: 0 20px 46px -26px rgba(0, 0, 0, 0.78);
   --shadow-raised: 0 14px 30px -14px rgba(0, 0, 0, 0.6);
 
-  /* Motion — one easing everywhere, so interactions feel like one system. */
+  /* Motion — one easing everywhere, so interactions feel like one system.
+     Deliberately quick: anything over ~200ms on a press reads as lag. The
+     press transition is faster again than the release, which is what makes a
+     button feel like it responds to the finger rather than trailing it. */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --fast: 140ms;
-  --med: 240ms;
-  --slow: 420ms;
+  --press: 80ms;
+  --fast: 110ms;
+  --med: 170ms;
+  --slow: 320ms;
 
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* Weather-icon palette — retints the whole set from one place. */
+  --icon-warm: #ffd166;
+  --icon-cool: #7cc0f5;
+  --icon-cloud: #eef4ff;
+  --icon-cloud-dim: #b3c1d6;
+
+  /* Inter is the closest widely-available match to iOS's SF Pro. Variable, so
+     every weight below comes from a single file. */
+  --font-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
 }
 
 /* ---------------------------------- shell --------------------------------- */
@@ -117,6 +130,11 @@ body {
   background: var(--page-base);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Inter's contextual alternates fix the 'ti'/'tt' pairs; tighter tracking
+     suits its slightly wide default metrics at UI sizes. */
+  font-feature-settings: 'cv11', 'ss01';
+  font-optical-sizing: auto;
+  letter-spacing: -0.006em;
 }
 
 .app {
@@ -277,7 +295,7 @@ body {
 }
 
 .brand__mark {
-  font-size: 1.375rem;
+  flex: none;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
 }
 
@@ -356,9 +374,11 @@ body {
   transform: translateY(-1px);
 }
 
+/* Press reads as a physical push: scale down slightly, and do it faster than
+   the release so the button feels ahead of the finger, not behind it. */
 .btn:not(:disabled):active {
-  transform: translateY(1px) scale(0.99);
-  transition-duration: 60ms;
+  transform: scale(0.97);
+  transition-duration: var(--press);
 }
 
 .btn--primary {
@@ -439,6 +459,11 @@ body {
   color: var(--ink-secondary);
 }
 
+.segmented__btn:active {
+  transform: scale(0.96);
+  transition-duration: var(--press);
+}
+
 .segmented__btn.is-active {
   background: rgba(255, 255, 255, 0.16);
   color: var(--ink-primary);
@@ -465,13 +490,14 @@ body {
 .searchbar__icon {
   position: absolute;
   left: 15px;
-  font-size: 0.9375rem;
-  opacity: 0.65;
+  color: var(--ink-muted);
+  opacity: 0.9;
   pointer-events: none;
-  transition: opacity var(--med) var(--ease);
+  transition: color var(--med) var(--ease), opacity var(--med) var(--ease);
 }
 
 .searchbar__field:focus-within .searchbar__icon {
+  color: var(--ink-primary);
   opacity: 1;
 }
 
@@ -568,7 +594,8 @@ body {
 }
 
 .suggestions__flag {
-  font-size: 1.125rem;
+  flex: none;
+  color: var(--ink-muted);
 }
 
 .suggestions__text {
@@ -696,8 +723,8 @@ body {
 }
 
 .chip:not(:disabled):active {
-  transform: translateY(0);
-  transition-duration: 60ms;
+  transform: scale(0.97);
+  transition-duration: var(--press);
 }
 
 .chip.is-active {
@@ -862,8 +889,7 @@ body {
 }
 
 .hero__icon {
-  font-size: 4.25rem;
-  line-height: 1;
+  flex: none;
   filter: drop-shadow(0 8px 22px rgba(0, 0, 0, 0.5));
   animation: float 5.5s ease-in-out infinite;
 }
@@ -915,6 +941,21 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Icon + text pairs: keep the glyph optically centred against the text. */
+.hero__range > span,
+.daily__pop,
+.hourly__pop {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn svg,
+.chip svg,
+.conditionpill svg {
+  flex: none;
+}
+
 /* -------------------------------- stat grid ------------------------------- */
 .statgrid {
   display: grid;
@@ -954,7 +995,13 @@ body {
 }
 
 .statgrid__icon {
-  transition: transform var(--med) var(--ease-out);
+  flex: none;
+  color: var(--ink-muted);
+  transition: transform var(--med) var(--ease-out), color var(--med) var(--ease);
+}
+
+.statgrid__item:hover .statgrid__icon {
+  color: var(--ink-secondary);
 }
 
 .statgrid__item:hover .statgrid__icon {
@@ -1137,8 +1184,6 @@ body {
 }
 
 .hourly__icon {
-  font-size: 1.5rem;
-  line-height: 1;
   transition: transform var(--med) var(--ease-out);
 }
 
@@ -1204,9 +1249,7 @@ body {
 }
 
 .daily__icon {
-  font-size: 1.375rem;
-  line-height: 1;
-  text-align: center;
+  justify-self: center;
   transition: transform var(--med) var(--ease-out);
 }
 
@@ -1291,9 +1334,9 @@ body {
 }
 
 .insights__icon {
-  font-size: 1.25rem;
-  line-height: 1.2;
   flex: none;
+  margin-top: 1px;
+  color: var(--ink-secondary);
 }
 
 .insights__body {
@@ -1391,8 +1434,8 @@ body {
 }
 
 .errorbox__icon {
-  font-size: 1.625rem;
-  line-height: 1;
+  flex: none;
+  color: #ff9a99;
 }
 
 .errorbox__body {

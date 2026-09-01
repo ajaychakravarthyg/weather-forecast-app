@@ -1,5 +1,7 @@
 import { formatDuration, formatPercent, formatTemp, formatWind } from '../utils/units'
-import { formatClock, formatDayMonth, formatWeekday, weatherIcon } from '../utils/weather'
+import { formatClock, formatDayMonth, formatWeekday } from '../utils/weather'
+import Icon from './Icon'
+import WeatherIcon from './WeatherIcon'
 
 /**
  * 7-day outlook. Each row carries its own min/max numbers, which is also what
@@ -47,14 +49,17 @@ export default function DailyForecast({ daily, system }) {
                 <span className="daily__date">{formatDayMonth(day.date)}</span>
               </div>
 
-              <span className="daily__icon" aria-hidden="true">
-                {weatherIcon(day.group, true)}
-              </span>
+              <WeatherIcon group={day.group} isDay size={26} className="daily__icon" />
 
               <span className="daily__desc">{day.description}</span>
 
               <span className="daily__pop" title="Chance of precipitation">
-                {day.precipitation_probability ? `💧 ${formatPercent(day.precipitation_probability)}` : ''}
+                {day.precipitation_probability ? (
+                  <>
+                    <Icon name="droplet" size={12} />
+                    {formatPercent(day.precipitation_probability)}
+                  </>
+                ) : null}
               </span>
 
               <span className="daily__min">{formatTemp(day.temp_min, system)}</span>

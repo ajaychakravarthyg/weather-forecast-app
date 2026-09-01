@@ -1,3 +1,5 @@
+import Icon from './Icon'
+
 /**
  * Climate context for the current location — how this month compares with the
  * same stretch last year, where it sits in the local rainfall year, and how
@@ -45,9 +47,7 @@ export default function Insights({ facts, loading, locationName }) {
       <ul className="insights">
         {facts.map((fact) => (
           <li className="insights__item" key={fact.id}>
-            <span className="insights__icon" aria-hidden="true">
-              {fact.icon}
-            </span>
+            <Icon name={fact.icon} size={19} className="insights__icon" />
             <span className="insights__body">
               <span className="insights__headline">{fact.headline}</span>
               <span className="insights__detail">{fact.detail}</span>

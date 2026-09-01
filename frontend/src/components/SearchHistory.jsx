@@ -1,5 +1,3 @@
-import { countryFlag } from '../utils/weather'
-
 /**
  * Recently searched cities. Clicking a chip re-runs the search using the stored
  * coordinates, so a repeat lookup skips geocoding entirely.
@@ -21,7 +19,6 @@ export default function SearchHistory({ history, activeKey, onSelect, onClear, d
               disabled={disabled}
               title={item.label}
             >
-              <span aria-hidden="true">{countryFlag(item.country_code)}</span>
               {item.name}
             </button>
           </li>

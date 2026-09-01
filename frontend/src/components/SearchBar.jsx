@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { geocode } from '../api'
-import { countryFlag } from '../utils/weather'
+import Icon from './Icon'
 
 /**
  * City search with a debounced suggestion dropdown.
@@ -112,9 +112,7 @@ export default function SearchBar({ onSearchCity, onSelectLocation, onUseMyLocat
     <div className="searchbar" ref={containerRef}>
       <form className="searchbar__form" onSubmit={submit} role="search">
         <div className="searchbar__field">
-          <span className="searchbar__icon" aria-hidden="true">
-            🔎
-          </span>
+          <Icon name="search" size={17} className="searchbar__icon" />
           <input
             ref={inputRef}
             className="searchbar__input"
@@ -147,7 +145,7 @@ export default function SearchBar({ onSearchCity, onSelectLocation, onUseMyLocat
           disabled={busy || geolocating}
           title="Use your current location"
         >
-          <span aria-hidden="true">📍</span>
+          <Icon name="pin" size={17} />
           <span className="btn__label">{geolocating ? 'Locating…' : 'Use my location'}</span>
         </button>
       </form>
@@ -164,9 +162,7 @@ export default function SearchBar({ onSearchCity, onSelectLocation, onUseMyLocat
               onPointerEnter={() => setActiveIndex(index)}
               onClick={() => choose(location)}
             >
-              <span className="suggestions__flag" aria-hidden="true">
-                {countryFlag(location.country_code)}
-              </span>
+              <Icon name="pin" size={15} className="suggestions__flag" />
               <span className="suggestions__text">
                 <strong>{location.name}</strong>
                 <small>
