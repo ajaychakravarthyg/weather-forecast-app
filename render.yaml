@@ -1,23 +1,57 @@
-# Render Blueprint — deploys the FastAPI backend on Render's free tier.
+# Render Blueprint — deploys the whole app (API + web) in one go.
 #
-# You can either use this file (Render dashboard -> New -> Blueprint, point it at
-# this repo) or configure the same values by hand as a new Web Service.
-# See README.md -> Deployment for the click-by-click version.
+#   Render dashboard -> New -> Blueprint -> pick this repo -> Apply
+#
+# Both services are on Render's free tier. The web service reads the API's
+# hostname straight from the api service via `fromService`, so there is no URL to
+# copy between dashboards and nothing to configure by hand.
 services:
+  # --------------------------------------------------------------- API ------ #
   - type: web
     name: weather-dashboard-api
     runtime: python
     plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    # Render injects $PORT — binding to it is required or the deploy is marked unhealthy.
+    # Render injects $PORT — binding to it is required or the deploy is marked
+    # unhealthy.
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.3"
-      # Set this to your Vercel URL after the frontend is deployed, e.g.
-      # https://weather-forecast-app.vercel.app  (comma-separated for several).
-      # Any *.vercel.app origin is already allowed by ALLOWED_ORIGIN_REGEX.
+      # The default ALLOWED_ORIGIN_REGEX already covers *.onrender.com, so the
+      # web service below is allowed without extra configuration. Set this only
+      # for a custom domain (comma-separated).
       - key: ALLOWED_ORIGINS
         sync: false
+
+  # --------------------------------------------------------------- web ------ #
+  - type: web
+    name: weather-dashboard-web
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Resolved at build time from the API service above. `host` yields a bare
+      # hostname with no scheme; the frontend normalises that to https (see
+      # normaliseBase in src/api.js), so this works as-is.
+      - key: VITE_API_BASE_URL
+        fromService:
+          name: weather-dashboard-api
+          type: web
+          property: host
+    routes:
+      # Single-page app: unknown paths serve the shell, not a 404.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /index.html
+        name: Cache-Control
+        value: no-store, must-revalidate

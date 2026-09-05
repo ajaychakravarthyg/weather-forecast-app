@@ -62,7 +62,7 @@ hourly strip and the 7-day list, so the tooltip enhances the data rather than ga
 **Backend** — Python 3.12, FastAPI, Uvicorn, httpx, Pydantic v2
 **Data** — [Open-Meteo](https://open-meteo.com) forecast + geocoding APIs (no key)
 **Containers** — Docker + Docker Compose (nginx serving the SPA and proxying the API)
-**Hosting** — Vercel (frontend) + Render (backend), both free tiers
+**Hosting** — one Render Blueprint deploys both services, or Vercel + Render. Free either way.
 
 ---
 
@@ -103,7 +103,8 @@ weather-forecast-app/
 │   └── package.json
 ├── docker-compose.yml        # nginx + FastAPI (production-style)
 ├── docker-compose.dev.yml    # live-reload stack for development
-├── render.yaml               # Render Blueprint for the backend
+├── render.yaml               # Render Blueprint — deploys API + web together
+├── DEPLOY.md                 # deployment walkthrough
 ├── .gitignore
 └── README.md
 ```
@@ -381,89 +382,15 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
 
 ## ☁️ Deploy for free
 
-Two free services: **Render** for the Python backend, **Vercel** for the React frontend. Deploy the
-backend first, because the frontend needs its URL.
+Two free paths, no credit card. The fastest is **one Blueprint that deploys both
+services** — `render.yaml` wires the frontend to the API automatically, so there
+is nothing to copy between dashboards:
 
-### Step 1 — Push to GitHub
+> Render → **New +** → **Blueprint** → pick this repo → **Apply**
 
-```bash
-git init
-git add .
-git commit -m "Weather dashboard"
-git branch -M main
-git remote add origin https://github.com/<your-username>/weather-forecast-app.git
-git push -u origin main
-```
-
-### Step 2 — Backend on Render
-
-1. Sign up at [render.com](https://render.com) (free, no card required).
-2. **New +** → **Web Service** → connect your GitHub repo.
-3. Configure it exactly like this:
-
-   | Setting | Value |
-   |---|---|
-   | **Root Directory** | `backend` |
-   | **Runtime** | Python 3 |
-   | **Build Command** | `pip install -r requirements.txt` |
-   | **Start Command** | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-   | **Instance Type** | Free |
-   | **Health Check Path** | `/api/health` |
-
-   > Binding to `$PORT` is required — Render marks the deploy unhealthy if you hardcode a port.
-   >
-   > Alternatively, use the included `render.yaml`: **New +** → **Blueprint** and point it at the repo.
-
-4. Deploy, then confirm `https://<your-service>.onrender.com/api/health` returns `{"status":"ok"}`.
-5. Copy that base URL — you need it next.
-
-### Step 3 — Frontend on Vercel
-
-1. Sign up at [vercel.com](https://vercel.com) and **Add New** → **Project** → import the same repo.
-2. Configure:
-
-   | Setting | Value |
-   |---|---|
-   | **Root Directory** | `frontend` |
-   | **Framework Preset** | Vite (auto-detected) |
-   | **Build Command** | `npm run build` |
-   | **Output Directory** | `dist` |
-
-3. Add an **Environment Variable** — this is the important bit:
-
-   | Key | Value |
-   |---|---|
-   | `VITE_API_BASE_URL` | `https://<your-service>.onrender.com` |
-
-   No trailing slash. Vite inlines env vars at **build time**, so if you change this later you must
-   **redeploy** for it to take effect.
-
-4. Deploy. 🎉
-
-### Step 4 — CORS
-
-The backend already allows any `*.vercel.app` origin, so a standard Vercel deployment works with no
-extra configuration. If you use a **custom domain**, add it on Render as an environment variable:
-
-| Key | Value |
-|---|---|
-| `ALLOWED_ORIGINS` | `https://weather.yourdomain.com` |
-
-(Comma-separate multiple origins.) Render restarts automatically when you save it.
-
-### ⏰ About Render's free tier
-
-**Render's free instances sleep after ~15 minutes of inactivity.** The first request after that has to
-cold-start the container, so **it can take ~30–60 seconds** — subsequent requests are fast. This is
-normal and not a bug in the app.
-
-The UI handles it gracefully: a network failure against a remote backend shows *"…it may be waking up
-— try again in a few seconds"* rather than a generic error. Options if it bothers you:
-
-- Mention the cold start in your portfolio README (recruiters understand free tiers).
-- Hit `/api/health` from a free uptime pinger (e.g. [cron-job.org](https://cron-job.org)) every
-  10 minutes to keep it warm.
-- Deploy the backend somewhere that doesn't sleep — [Fly.io](https://fly.io) has a free allowance.
+Full walkthrough, the Vercel + Render alternative, notes on the free-tier cold
+start, and how to deploy the published container images instead:
+**[DEPLOY.md](DEPLOY.md)**.
 
 ---
 

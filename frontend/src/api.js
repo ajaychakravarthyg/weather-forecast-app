@@ -6,7 +6,22 @@
  * VITE_API_BASE_URL to your Render URL, e.g. https://my-api.onrender.com
  */
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+/**
+ * Normalise the configured API base.
+ *
+ * Accepts a full URL ("https://api.example.com") or a bare hostname
+ * ("api.example.com"), because some hosts expose a service's address as a
+ * hostname with no scheme — Render's `fromService: property: host`, for one.
+ * A bare host is assumed to be https, since no free host serves plain http.
+ */
+function normaliseBase(raw) {
+  const value = (raw || '').trim().replace(/\/+$/, '')
+  if (!value) return ''
+  if (/^https?:\/\//i.test(value)) return value
+  return `https://${value}`
+}
+
+const API_BASE = normaliseBase(import.meta.env.VITE_API_BASE_URL)
 
 /** Whether we're talking to a remote backend (relevant for cold-start hints). */
 export const usesRemoteBackend = API_BASE !== ''

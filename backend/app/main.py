@@ -40,9 +40,18 @@ DEFAULT_ORIGINS = [
 _env_origins = [o.strip().rstrip("/") for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 ALLOWED_ORIGINS = DEFAULT_ORIGINS + _env_origins
 
-# Any Vercel preview/production deployment of this project. Vercel gives every
-# push its own subdomain, so a regex beats maintaining an explicit list.
-ALLOWED_ORIGIN_REGEX = os.getenv("ALLOWED_ORIGIN_REGEX", r"https://.*\.vercel\.app")
+# Free hosts give every deployment its own generated subdomain, so a regex beats
+# maintaining an explicit list of them.
+#
+# A permissive default is defensible here, and it is worth being clear why:
+# this API is public, read-only, unauthenticated, and sends no credentials
+# (allow_credentials=False). CORS only governs which *browser origins* may read
+# a response — it is not an access control, and anyone can call these endpoints
+# with curl regardless. Tighten it via ALLOWED_ORIGIN_REGEX if you ever add auth.
+ALLOWED_ORIGIN_REGEX = os.getenv(
+    "ALLOWED_ORIGIN_REGEX",
+    r"https://.*\.(vercel\.app|onrender\.com|netlify\.app|pages\.dev|fly\.dev)",
+)
 
 
 @asynccontextmanager
